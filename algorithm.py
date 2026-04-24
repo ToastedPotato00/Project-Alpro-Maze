@@ -1,24 +1,3 @@
-"""
-algorithm.py — Phase 4
-DFS backtracking with full tile mechanics:
-  - step counter
-  - fire damage + HP tracking
-  - mud freeze frames
-  - ice sliding
-  - teleporters
-  - key pickup
-  - broken wall (key consumed / restored on backtrack)
-
-Yields tuples:
-  ("move",        row, col, extra)
-  ("backtrack",   row, col, extra)
-  ("found",       row, col, extra)
-  ("no_solution", -1,  -1,  {})
-
-extra dict always contains:
-  step_cost, freeze_frames, teleported_to, key_picked_up, wall_broken
-"""
-
 from tiles import is_passable, get_step_cost, apply_tile_effect, build_teleporter_map
 
 DIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]

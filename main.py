@@ -1,11 +1,10 @@
 """
-main.py — Phase 4
-Full tile mechanics wired in:
-  step counter, fire HP, mud freeze, ice slide,
-  teleporter snap, key pickup, broken wall + key restore on backtrack.
-
-HUD shows HP bar, key count, step count, status.
-R = restart, ESC = quit.
+main.py — Phase 6
+Minimum viable UI — clean final version.
+  - HUD: HP bar, key counter, step counter, speed slider, status
+  - Visited trail (blue) + backtrack trail (orange)
+  - Goal tile highlight
+  - R = restart, ESC = quit
 """
 
 import pygame
@@ -17,29 +16,19 @@ from map_loader   import load_map, find_tile
 from map_renderer import MapRenderer
 from player       import Player
 from algorithm    import dfs_backtrack
-from tiles        import build_teleporter_map
-from ui           import HUD
+from ui           import HUD, HUD_HEIGHT
 
-WINDOW_TITLE   = "MazeCrawler — Phase 4 (Tile Mechanics)"
-FPS            = 60
+WINDOW_TITLE = "MazeCrawler — Prototype"
+FPS          = 60
 
-SLEEP_MOVE      = 0.08
-SLEEP_BACKTRACK = 0.04
-SLEEP_FREEZE    = 0.15   # per mud freeze frame
-
-TRAIL_COLOR  = (80, 160, 255)
-TRAIL_ALPHA  = 60
+TRAIL_COLOR  = (80,  160, 255)
+TRAIL_ALPHA  = 55
+BT_ALPHA     = 30
 
 
-def make_trail_surf(tile_size):
+def make_overlay(tile_size, r, g, b, a):
     s = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
-    s.fill((*TRAIL_COLOR, TRAIL_ALPHA))
-    return s
-
-
-def make_bt_surf(tile_size):
-    s = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
-    s.fill((255, 120, 60, 35))
+    s.fill((r, g, b, a))
     return s
 
 
@@ -59,11 +48,8 @@ def main():
     pygame.font.init()
 
     grid_master, tile_size = load_map("maps/map_test.txt")
-    cols = len(grid_master[0])
-    rows = len(grid_master)
-
-    # Extra height for HUD
-    from ui import HUD_HEIGHT
+    cols     = len(grid_master[0])
+    rows     = len(grid_master)
     screen_w = cols * tile_size
     screen_h = rows * tile_size + HUD_HEIGHT
 
@@ -71,8 +57,8 @@ def main():
     pygame.display.set_caption(WINDOW_TITLE)
     clock  = pygame.time.Clock()
 
-    trail_surf = make_trail_surf(tile_size)
-    bt_surf    = make_bt_surf(tile_size)
+    trail_surf = make_overlay(tile_size, *TRAIL_COLOR, TRAIL_ALPHA)
+    bt_surf    = make_overlay(tile_size, 255, 120, 60, BT_ALPHA)
 
     grid, player, gen, goal = build_run(grid_master, tile_size)
     renderer = MapRenderer(grid, tile_size)
@@ -80,12 +66,9 @@ def main():
 
     visited_cells   = {(player.row, player.col)}
     backtrack_cells = set()
-    status     = "idle"
-    finished   = False
-    last_step  = time.time()
-
-    help_font = pygame.font.SysFont("monospace", 14)
-    help_text = help_font.render("R = restart   ESC = quit", True, (100, 100, 100))
+    status   = "idle"
+    finished = False
+    last_step = time.time()
 
     running = True
     while running:
@@ -105,17 +88,17 @@ def main():
                     status    = "idle"
                     finished  = False
                     last_step = now
+            hud.handle_event(event)
 
-        # --- Mud freeze tick ---
+        # ── Mud freeze tick ────────────────────────────────────────────────
         if player.is_frozen():
             player.tick_freeze()
-            # Slow down while frozen
-            time.sleep(SLEEP_FREEZE)
+            time.sleep(0.12)
 
-        # --- Step algorithm ---
+        # ── Step algorithm ─────────────────────────────────────────────────
         if not finished and not player.is_frozen():
-            sleep_time = SLEEP_BACKTRACK if status == "backtracking" else SLEEP_MOVE
-            if now - last_step >= sleep_time:
+            delay = hud.step_delay * (0.5 if status == "backtracking" else 1.0)
+            if now - last_step >= delay:
                 try:
                     kind, r, c, extra = next(gen)
                     last_step = time.time()
@@ -125,15 +108,13 @@ def main():
                         visited_cells.add((r, c))
                         backtrack_cells.discard((r, c))
                         renderer.update_grid(grid)
-
-                        # Trigger mud freeze
                         if extra.get("freeze_frames", 0) > 0:
                             player.freeze_frames_left = extra["freeze_frames"]
 
                     elif kind == "backtrack":
                         status = "backtracking"
                         backtrack_cells.add((r, c))
-                        renderer.update_grid(grid)   # wall/key restorations
+                        renderer.update_grid(grid)
 
                     elif kind == "found":
                         status   = "found"
@@ -148,7 +129,7 @@ def main():
                         status = "no_solution"
                     finished = True
 
-        # --- Draw ---
+        # ── Draw ──────────────────────────────────────────────────────────
         screen.fill((0, 0, 0))
         renderer.draw(screen)
 
@@ -159,14 +140,15 @@ def main():
 
         player.draw(screen)
 
-        # Goal highlight
+        # Goal highlight — pulsing yellow ring
         gx = goal[1] * tile_size
         gy = goal[0] * tile_size
-        pygame.draw.rect(screen, (255, 220, 40), (gx, gy, tile_size, tile_size), 3)
+        pulse = abs((pygame.time.get_ticks() % 1000) - 500) / 500   # 0→1→0
+        ring_w = max(1, int(1 + pulse * 3))
+        pygame.draw.rect(screen, (255, 215, 40),
+                         (gx, gy, tile_size, tile_size), ring_w)
 
         hud.draw(screen, player, status)
-
-        screen.blit(help_text, (screen_w - help_text.get_width() - 8, 6))
 
         pygame.display.flip()
         clock.tick(FPS)
