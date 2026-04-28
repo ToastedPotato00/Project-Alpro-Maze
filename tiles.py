@@ -1,17 +1,12 @@
 """
-tiles.py — Phase 4
-Symbol → color map, passability helpers, and tile effect application.
+tiles.py — ice removed
 """
 
-# ---------------------------------------------------------------------------
-# Color palette
-# ---------------------------------------------------------------------------
 TILE_COLORS = {
     "#": (30,  30,  35),
     "%": (80,  55,  30),
     ".": (60,  55,  50),
     "M": (90,  70,  20),
-    "I": (160, 220, 240),
     "F": (210,  70,  20),
     "T": (140,  60, 200),
     "t": (180, 100, 220),
@@ -22,13 +17,9 @@ TILE_COLORS = {
 
 DEFAULT_COLOR = (200, 0, 200)
 
-# ---------------------------------------------------------------------------
-# Step costs (used by scoring in Map 3)
-# ---------------------------------------------------------------------------
 STEP_COST = {
     ".": 1,
     "M": 3,
-    "I": 1,   # whole slide = 1 regardless of distance
     "F": 1,
     "T": 1,
     "t": 1,
@@ -38,20 +29,15 @@ STEP_COST = {
     "G": 0,
 }
 
-# Mud freeze duration (animation frames bot pauses on mud entry)
 MUD_FREEZE_FRAMES = 2
-
-# Fire damage per step
 FIRE_DAMAGE = 25
 
 
 def get_color(symbol: str):
     return TILE_COLORS.get(symbol, DEFAULT_COLOR)
 
-
 def is_wall(symbol: str) -> bool:
     return symbol in ("#", "%")
-
 
 def is_passable(symbol: str, keys: int = 0) -> bool:
     if symbol == "#":
@@ -60,45 +46,22 @@ def is_passable(symbol: str, keys: int = 0) -> bool:
         return False
     return True
 
-
 def get_step_cost(symbol: str) -> int:
     return STEP_COST.get(symbol, 1)
 
-
 def build_teleporter_map(grid) -> dict:
-    """
-    Scan the grid and pair T<->t teleporters in order of appearance.
-    Returns a dict mapping (r,c) -> (r,c) for both directions.
-    """
-    T_cells = []
-    t_cells = []
+    T_cells, t_cells = [], []
     for r, row in enumerate(grid):
         for c, sym in enumerate(row):
-            if sym == "T":
-                T_cells.append((r, c))
-            elif sym == "t":
-                t_cells.append((r, c))
-
+            if sym == "T": T_cells.append((r, c))
+            elif sym == "t": t_cells.append((r, c))
     teleporters = {}
     for a, b in zip(T_cells, t_cells):
         teleporters[a] = b
         teleporters[b] = a
     return teleporters
 
-
 def apply_tile_effect(symbol: str, player, grid, teleporter_map: dict):
-    """
-    Apply the effect of landing on a tile. Mutates player state in place.
-
-    Returns extra info dict:
-      {
-        "freeze_frames": int,
-        "teleported_to": (r,c) | None,
-        "key_picked_up": bool,
-        "wall_broken":   bool,
-        "step_cost":     int,
-      }
-    """
     result = {
         "freeze_frames": 0,
         "teleported_to": None,
@@ -106,27 +69,18 @@ def apply_tile_effect(symbol: str, player, grid, teleporter_map: dict):
         "wall_broken":   False,
         "step_cost":     get_step_cost(symbol),
     }
-
     if symbol == "F":
         player.hp -= FIRE_DAMAGE
-
     elif symbol == "M":
         result["freeze_frames"] = MUD_FREEZE_FRAMES
-
-    elif symbol == "I":
-        # Ice sliding handled in algorithm.py; cost is just 1
-        pass
-
     elif symbol in ("T", "t"):
         dest = teleporter_map.get((player.row, player.col))
         if dest:
             player.set_position(*dest)
             result["teleported_to"] = dest
-
     elif symbol == "K":
         player.keys += 1
         grid[player.row][player.col] = "."
         result["key_picked_up"] = True
         result["step_cost"] = 0
-
     return result
