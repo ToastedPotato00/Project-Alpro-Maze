@@ -8,6 +8,7 @@ TILE_COLORS = {
     ".": (60,  55,  50),
     "M": (90,  70,  20),
     "F": (210,  70,  20),
+    "R": (60,  180,  80),
     "T": (140,  60, 200),
     "t": (180, 100, 220),
     "K": (240, 200,  40),
@@ -21,6 +22,7 @@ STEP_COST = {
     ".": 1,
     "M": 3,
     "F": 1,
+    "R": 1,
     "T": 1,
     "t": 1,
     "K": 0,
@@ -30,7 +32,9 @@ STEP_COST = {
 }
 
 MUD_FREEZE_FRAMES = 2
-FIRE_DAMAGE = 25
+FIRE_DAMAGE  = 25
+REGEN_HEAL   = 15
+REGEN_CAP    = 100
 
 
 def get_color(symbol: str):
@@ -71,6 +75,8 @@ def apply_tile_effect(symbol: str, player, grid, teleporter_map: dict):
     }
     if symbol == "F":
         player.hp -= FIRE_DAMAGE
+    elif symbol == "R":
+        player.hp = min(REGEN_CAP, player.hp + REGEN_HEAL)
     elif symbol == "M":
         result["freeze_frames"] = MUD_FREEZE_FRAMES
     elif symbol in ("T", "t"):

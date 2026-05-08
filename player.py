@@ -11,9 +11,9 @@ from tiles import is_passable
 BOT_COLOR        = (50, 200, 255)
 BOT_BORDER_COLOR = (10,  80, 120)
 BOT_PADDING      = 4
-
-# Mud freeze: bot flashes darker while frozen
 BOT_FROZEN_COLOR = (30, 120, 160)
+
+ANIM_TICKS_PER_FRAME = 8   # advance animation frame every 8 draw calls (~7.5 fps at 60 fps)
 
 
 class Player:
@@ -25,6 +25,11 @@ class Player:
         self.hp        = 100
         self.steps     = 0
         self.freeze_frames_left = 0   # mud freeze countdown
+        self.direction    = "down"    # last movement direction for sprite selection
+        self.is_backtrack = False     # set by main.py when algorithm backtracks
+        self.is_active    = False     # True while algorithm is stepping
+        self.anim_frame   = 0         # current index into the active frame list
+        self.anim_tick    = 0         # counts draw() calls; resets at ANIM_TICKS_PER_FRAME
 
     # ------------------------------------------------------------------
     def try_move(self, dr: int, dc: int, grid: list) -> bool:
@@ -43,6 +48,11 @@ class Player:
         return True
 
     def set_position(self, row: int, col: int):
+        dr, dc = row - self.row, col - self.col
+        if   dr < 0: self.direction = "up"
+        elif dr > 0: self.direction = "down"
+        elif dc < 0: self.direction = "left"
+        elif dc > 0: self.direction = "right"
         self.row = row
         self.col = col
 
@@ -54,14 +64,42 @@ class Player:
             self.freeze_frames_left -= 1
 
     # ------------------------------------------------------------------
-    def draw(self, surface: pygame.Surface):
+    def draw(self, surface: pygame.Surface, sprites: dict = None):
         ts = self.tile_size
-        p  = BOT_PADDING
-        x  = self.col * ts + p
-        y  = self.row * ts + p
-        w  = ts - p * 2
-        h  = ts - p * 2
 
+        if sprites is not None:
+            bot = sprites.get("bot", {})
+
+            # Select animation set and horizontal flip
+            if self.is_frozen():
+                frames = bot.get("hit") or bot.get("idle")
+                flip_x = False
+            elif self.is_active:
+                frames = bot.get("run") or bot.get("idle")
+                # XOR: forward=face direction, backtrack=face opposite
+                flip_x = (self.direction == "left") ^ self.is_backtrack
+            else:
+                frames = bot.get("idle") or bot.get("run")
+                flip_x = (self.direction == "left")
+
+            if frames:
+                self.anim_tick += 1
+                if self.anim_tick >= ANIM_TICKS_PER_FRAME:
+                    self.anim_tick  = 0
+                    self.anim_frame = (self.anim_frame + 1) % len(frames)
+
+                frame = frames[self.anim_frame % len(frames)]
+                if flip_x:
+                    frame = pygame.transform.flip(frame, True, False)
+                surface.blit(frame, (self.col * ts, self.row * ts))
+                return
+
+        # Fallback: colored rounded rect
+        p     = BOT_PADDING
+        x     = self.col * ts + p
+        y     = self.row * ts + p
+        w     = ts - p * 2
+        h     = ts - p * 2
         color = BOT_FROZEN_COLOR if self.is_frozen() else BOT_COLOR
         rect  = pygame.Rect(x, y, w, h)
         pygame.draw.rect(surface, color, rect, border_radius=4)

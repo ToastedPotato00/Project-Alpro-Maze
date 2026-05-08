@@ -17,9 +17,10 @@ BORDER_WIDTH = 1
 
 
 class MapRenderer:
-    def __init__(self, grid: list, tile_size: int):
+    def __init__(self, grid: list, tile_size: int, sprites: dict = None):
         self.grid      = grid
         self.tile_size = tile_size
+        self.sprites   = sprites
         self._font     = None
 
         if tile_size >= LABEL_MIN_TILE:
@@ -27,26 +28,28 @@ class MapRenderer:
             self._font = pygame.font.SysFont("monospace", max(10, tile_size // 3), bold=True)
 
     # ------------------------------------------------------------------
-    def draw(self, surface: pygame.Surface):
-        ts = self.tile_size
+    def draw(self, surface: pygame.Surface, ticks: int = 0):
+        ts           = self.tile_size
+        tile_sprites = self.sprites.get("tiles", {}) if self.sprites else {}
+        tile_anims   = self.sprites.get("tile_anims", {}) if self.sprites else {}
 
         for r, row in enumerate(self.grid):
             for c, symbol in enumerate(row):
-                x = c * ts
-                y = r * ts
+                x    = c * ts
+                y    = r * ts
+                rect = pygame.Rect(x, y, ts, ts)
 
-                color = get_color(symbol)
-                rect  = pygame.Rect(x, y, ts, ts)
-
-                # Fill tile
-                pygame.draw.rect(surface, color, rect)
-
-                # Grid border
-                pygame.draw.rect(surface, BORDER_COLOR, rect, BORDER_WIDTH)
-
-                # Symbol label (only for non-floor, non-wall tiles)
-                if self._font and symbol not in ("#", "."):
-                    self._draw_label(surface, symbol, x, y, ts)
+                if symbol in tile_anims:
+                    frames = tile_anims[symbol]
+                    frame  = frames[(ticks // 200) % len(frames)]
+                    surface.blit(frame, (x, y))
+                elif symbol in tile_sprites:
+                    surface.blit(tile_sprites[symbol], (x, y))
+                else:
+                    pygame.draw.rect(surface, get_color(symbol), rect)
+                    pygame.draw.rect(surface, BORDER_COLOR, rect, BORDER_WIDTH)
+                    if self._font and symbol not in ("#", "."):
+                        self._draw_label(surface, symbol, x, y, ts)
 
     # ------------------------------------------------------------------
     def _draw_label(self, surface, symbol, x, y, ts):

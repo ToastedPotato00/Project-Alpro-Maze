@@ -7,12 +7,13 @@ import sys
 import time
 import copy
 
-from map_loader   import load_map, find_tile
-from map_renderer import MapRenderer
-from player       import Player
-from algorithm    import dfs_backtrack
-from ui           import HUD, HUD_HEIGHT
-from map_editor   import run_editor
+from map_loader    import load_map, find_tile
+from map_renderer  import MapRenderer
+from player        import Player
+from algorithm     import dfs_backtrack
+from ui            import HUD, HUD_HEIGHT
+from map_editor    import run_editor
+from sprite_loader import load_sprites
 
 WINDOW_TITLE = "MazeCrawler"
 SCREEN_W     = 800
@@ -132,11 +133,13 @@ def run_game(screen):
     pygame.display.set_caption(WINDOW_TITLE)
     clock = pygame.time.Clock()
 
+    sprites = load_sprites(tile_size)   # None if spritesheet missing → rect fallback
+
     trail_surf = make_overlay(tile_size, *TRAIL_COLOR, TRAIL_ALPHA)
     bt_surf    = make_overlay(tile_size, 255, 120, 60, BT_ALPHA)
 
     grid, player, gen, goal = build_run(grid_master, tile_size)
-    renderer = MapRenderer(grid, tile_size)
+    renderer = MapRenderer(grid, tile_size, sprites=sprites)
     hud      = HUD(game_w, game_h)
 
     visited_cells   = {(player.row, player.col)}
@@ -144,9 +147,6 @@ def run_game(screen):
     status    = "idle"
     finished  = False
     last_step = time.time()
-
-    font_sm   = pygame.font.SysFont("monospace", 13)
-    help_text = font_sm.render("R restart   ESC menu", True, (80, 80, 100))
 
     while True:
         now = time.time()
@@ -179,6 +179,8 @@ def run_game(screen):
                     last_step = time.time()
                     if kind == "move":
                         status = "exploring"
+                        player.is_active    = True
+                        player.is_backtrack = False
                         visited_cells.add((r, c))
                         backtrack_cells.discard((r, c))
                         renderer.update_grid(grid)
@@ -186,26 +188,33 @@ def run_game(screen):
                             player.freeze_frames_left = extra["freeze_frames"]
                     elif kind == "backtrack":
                         status = "backtracking"
+                        player.is_active    = True
+                        player.is_backtrack = True
                         backtrack_cells.add((r, c))
                         renderer.update_grid(grid)
                     elif kind == "found":
-                        status = "found"; finished = True
+                        status = "found"
+                        player.is_active    = False
+                        player.is_backtrack = False
+                        finished = True
                     elif kind == "no_solution":
-                        status = "no_solution"; finished = True
+                        status = "no_solution"
+                        player.is_active = False
+                        finished = True
                 except StopIteration:
                     if status not in ("found", "no_solution"):
                         status = "no_solution"
                     finished = True
 
         game_screen.fill((0, 0, 0))
-        renderer.draw(game_screen)
+        renderer.draw(game_screen, pygame.time.get_ticks())
 
         for (vr, vc) in visited_cells:
             game_screen.blit(trail_surf, (vc * tile_size, vr * tile_size))
         for (vr, vc) in backtrack_cells:
             game_screen.blit(bt_surf, (vc * tile_size, vr * tile_size))
 
-        player.draw(game_screen)
+        player.draw(game_screen, sprites)
 
         gx = goal[1] * tile_size
         gy = goal[0] * tile_size
@@ -214,8 +223,6 @@ def run_game(screen):
                          (gx, gy, tile_size, tile_size), max(1, int(1 + pulse * 3)))
 
         hud.draw(game_screen, player, status)
-        game_screen.blit(help_text,
-                         (game_w - help_text.get_width() - 8, 6))
         pygame.display.flip()
         clock.tick(FPS)
 

@@ -20,6 +20,7 @@ PALETTE = [
     (".", "Floor",        (60,  55,  50)),
     ("M", "Mud",          (90,  70,  20)),
     ("F", "Fire",         (210, 70,  20)),
+    ("R", "Regen",        (60, 180,  80)),
     ("T", "Teleport A",   (140, 60, 200)),
     ("t", "Teleport B",   (180,100, 220)),
     ("K", "Key",          (240,200,  40)),
@@ -336,6 +337,7 @@ MIN_TILE     = 14
 MAX_TILE     = 40
 PAL_ITEM_W   = 72
 PAL_ITEM_H   = 70
+PAL_SPRITE_SIZE = 32   # fixed sprite size for palette swatches
 
 
 class EditorScreen:
@@ -364,6 +366,10 @@ class EditorScreen:
         self.error_msg     = ""
         self.saved_msg     = ""
         self.saved_timer   = 0
+
+        from sprite_loader import load_sprites
+        self.sprites     = load_sprites(self.ts)          # canvas tile sprites
+        self.pal_sprites = load_sprites(PAL_SPRITE_SIZE)  # palette swatch sprites
 
         self._build_palette()
         self._build_buttons()
@@ -483,18 +489,26 @@ class EditorScreen:
         ox  = self.off_x
         oy  = self.off_y
 
+        tile_sprites = self.sprites.get("tiles", {}) if self.sprites else {}
+        tile_anims   = self.sprites.get("tile_anims", {}) if self.sprites else {}
+        ticks        = pygame.time.get_ticks()
         for r, row in enumerate(self.grid):
             for c, sym in enumerate(row):
                 x = ox + c * ts
                 y = oy + r * ts
-                col = get_color(sym)
-                pygame.draw.rect(s, col, (x, y, ts, ts))
+                if sym in tile_anims:
+                    frames = tile_anims[sym]
+                    frame  = frames[(ticks // 120) % len(frames)]
+                    s.blit(frame, (x, y))
+                elif sym in tile_sprites:
+                    s.blit(tile_sprites[sym], (x, y))
+                else:
+                    col = get_color(sym)
+                    pygame.draw.rect(s, col, (x, y, ts, ts))
+                    if ts >= 18 and sym not in ("#", "."):
+                        lbl = self.fonts["xs"].render(sym, True, (255, 255, 255))
+                        s.blit(lbl, lbl.get_rect(center=(x + ts // 2, y + ts // 2)))
                 pygame.draw.rect(s, GRID_LINE, (x, y, ts, ts), 1)
-
-                # Symbol label on large enough tiles
-                if ts >= 18 and sym not in ("#", "."):
-                    lbl = self.fonts["xs"].render(sym, True, (255,255,255))
-                    s.blit(lbl, lbl.get_rect(center=(x + ts//2, y + ts//2)))
 
         # Hover highlight
         mx, my = pygame.mouse.get_pos()
@@ -513,6 +527,8 @@ class EditorScreen:
         pygame.draw.rect(s, PANEL_BG, (0, pal_y, self.W, PALETTE_H))
         pygame.draw.line(s, BORDER, (0, pal_y), (self.W, pal_y), 1)
 
+        pal_tile_sprites = self.pal_sprites.get("tiles", {}) if self.pal_sprites else {}
+        pal_tile_anims   = self.pal_sprites.get("tile_anims", {}) if self.pal_sprites else {}
         for rect, sym, label, col in self.pal_rects:
             # Swatch background
             pygame.draw.rect(s, col, rect, border_radius=4)
@@ -521,17 +537,27 @@ class EditorScreen:
             else:
                 pygame.draw.rect(s, BORDER, rect, 1, border_radius=4)
 
-            # Symbol
-            sym_lbl = self.fonts["md"].render(sym, True, (255,255,255))
-            s.blit(sym_lbl, sym_lbl.get_rect(
-                centerx=rect.centerx, y=rect.y + 6))
+            # Sprite or symbol glyph
+            if sym in pal_tile_anims:
+                spr = pal_tile_anims[sym][0]
+                cx  = rect.x + (rect.width - PAL_SPRITE_SIZE) // 2
+                s.blit(spr, (cx, rect.y + 4))
+            elif sym in pal_tile_sprites:
+                cx = rect.x + (rect.width - PAL_SPRITE_SIZE) // 2
+                s.blit(pal_tile_sprites[sym], (cx, rect.y + 4))
+            else:
+                sym_lbl = self.fonts["md"].render(sym, True, (255, 255, 255))
+                s.blit(sym_lbl, sym_lbl.get_rect(centerx=rect.centerx, y=rect.y + 6))
 
-            # Name
-            name_lbl = self.fonts["xs"].render(label, True,
-                                               (220,220,220) if sym == self.selected_tile
-                                               else TEXT_DIM)
-            s.blit(name_lbl, name_lbl.get_rect(
-                centerx=rect.centerx, y=rect.y + 30))
+            # Name label — dark pill for contrast, white text
+            name_lbl = self.fonts["sm"].render(label, True, (240, 240, 240))
+            lw, lh   = name_lbl.get_size()
+            pill     = pygame.Surface((lw + 8, lh + 2), pygame.SRCALPHA)
+            pill.fill((0, 0, 0, 150))
+            pill_x = rect.centerx - (lw + 8) // 2
+            pill_y = rect.bottom - lh - 5
+            s.blit(pill, (pill_x, pill_y))
+            s.blit(name_lbl, (pill_x + 4, pill_y + 1))
 
         # ── Top bar ───────────────────────────────────────────────────────────
         pygame.draw.rect(s, PANEL_BG, (0, 0, self.W, 50))

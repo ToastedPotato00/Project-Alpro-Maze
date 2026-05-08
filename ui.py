@@ -12,7 +12,7 @@ Clean, final HUD layout:
 import pygame
 
 # ── Layout ────────────────────────────────────────────────────────────────────
-HUD_HEIGHT   = 48
+HUD_HEIGHT   = 60
 HUD_BG       = (12, 12, 18)
 HUD_BORDER   = (40, 40, 55)
 PADDING      = 10
@@ -54,7 +54,7 @@ STATUS_LABELS = {
 }
 
 # ── Speed slider ──────────────────────────────────────────────────────────────
-SLIDER_W       = 80
+SLIDER_W       = 70
 SLIDER_H       = 6
 SLIDER_KNOB_R  = 6
 SLIDER_COL_BG  = (40, 40, 55)
@@ -106,59 +106,59 @@ class HUD:
         hud_rect = pygame.Rect(0, self.hud_y, self.screen_w, HUD_HEIGHT)
         pygame.draw.rect(surface, HUD_BG, hud_rect)
         pygame.draw.line(surface, HUD_BORDER,
-                         (0, self.hud_y), (self.screen_w, self.hud_y), 1)
+                         (0, self.hud_y), (self.screen_w, self.hud_y), 2)
 
         cy = self.hud_y + HUD_HEIGHT // 2
-        x  = PADDING
 
-        # ── HP ──────────────────────────────────────────────────────────────
-        x = self._draw_label(surface, "HP", x, cy)
+        # ── Zone 1: HP (anchored left) ───────────────────────────────────────
+        x = PADDING
+        lbl = self.font_sm.render("HP", True, LABEL_COLOR)
+        surface.blit(lbl, (x, cy - lbl.get_height() // 2))
+        x += lbl.get_width() + 6
         x = self._draw_hp_bar(surface, player.hp, x, cy)
         hp_txt = self.font.render(str(max(0, player.hp)), True, TEXT_COLOR)
         surface.blit(hp_txt, (x, cy - hp_txt.get_height() // 2))
-        x += hp_txt.get_width() + PADDING * 2
 
-        x = self._draw_divider(surface, x, cy)
+        # ── Zone 2: KEYS + STEPS (fixed anchor x=185) ────────────────────────
+        self._draw_divider(surface, 183, cy)
+        x = 193
+        k_lbl = self.font_sm.render("KEYS", True, LABEL_COLOR)
+        k_val = self.font.render(str(player.keys), True, KEY_COLOR)
+        surface.blit(k_lbl, (x, cy - k_lbl.get_height() // 2))
+        x += k_lbl.get_width() + 5
+        surface.blit(k_val, (x, cy - k_val.get_height() // 2))
+        x += k_val.get_width() + PADDING * 2
 
-        # ── Keys ─────────────────────────────────────────────────────────────
-        x = self._draw_label(surface, "KEYS", x, cy)
-        key_txt = self.font.render(str(player.keys), True, KEY_COLOR)
-        surface.blit(key_txt, (x, cy - key_txt.get_height() // 2))
-        x += key_txt.get_width() + PADDING * 2
+        s_lbl = self.font_sm.render("STEPS", True, LABEL_COLOR)
+        s_val = self.font.render(str(player.steps), True, STEP_COLOR)
+        surface.blit(s_lbl, (x, cy - s_lbl.get_height() // 2))
+        x += s_lbl.get_width() + 5
+        surface.blit(s_val, (x, cy - s_val.get_height() // 2))
 
-        x = self._draw_divider(surface, x, cy)
+        # ── Zone 3: Speed slider (fixed anchor x=348) ────────────────────────
+        self._draw_divider(surface, 346, cy)
+        x = 356
+        sp_lbl = self.font_sm.render("SPEED", True, LABEL_COLOR)
+        surface.blit(sp_lbl, (x, cy - sp_lbl.get_height() // 2))
+        x += sp_lbl.get_width() + 6
+        self._draw_slider(surface, x, cy)
 
-        # ── Steps ────────────────────────────────────────────────────────────
-        x = self._draw_label(surface, "STEPS", x, cy)
-        step_txt = self.font.render(str(player.steps), True, STEP_COLOR)
-        surface.blit(step_txt, (x, cy - step_txt.get_height() // 2))
-        x += step_txt.get_width() + PADDING * 2
-
-        x = self._draw_divider(surface, x, cy)
-
-        # ── Speed slider ─────────────────────────────────────────────────────
-        x = self._draw_label(surface, "SPEED", x, cy)
-        x = self._draw_slider(surface, x, cy)
-        x += PADDING * 2
-
-        # ── Status (right-aligned) ────────────────────────────────────────────
+        # ── Zone 4: Status + hint (right-anchored, stacked) ──────────────────
         slabel = STATUS_LABELS.get(status, status)
         scolor = STATUS_COLORS.get(status, TEXT_COLOR)
         stxt   = self.font.render(slabel, True, scolor)
         sx     = self.screen_w - stxt.get_width() - PADDING
-        surface.blit(stxt, (sx, cy - stxt.get_height() // 2))
+        # Colored accent bar on left of status zone
+        pygame.draw.rect(surface, scolor,
+                         (sx - 6, self.hud_y + 10, 3, HUD_HEIGHT - 20),
+                         border_radius=1)
+        surface.blit(stxt, (sx, self.hud_y + 8))
 
-        # ── Help hint (very small, top-right of HUD) ──────────────────────────
-        hint = self.font_sm.render("R restart   ESC quit", True, LABEL_COLOR)
-        surface.blit(hint, (self.screen_w - hint.get_width() - PADDING,
-                             self.hud_y + 3))
+        hint = self.font_sm.render("R restart   ESC menu", True, (80, 80, 105))
+        hx   = self.screen_w - hint.get_width() - PADDING
+        surface.blit(hint, (hx, self.hud_y + HUD_HEIGHT - hint.get_height() - 5))
 
     # ── Internal draw helpers ─────────────────────────────────────────────────
-
-    def _draw_label(self, surface, text, x, cy):
-        lbl = self.font_sm.render(text, True, LABEL_COLOR)
-        surface.blit(lbl, (x, cy - lbl.get_height() // 2 - 1))
-        return x + lbl.get_width() + 5
 
     def _draw_divider(self, surface, x, cy):
         pygame.draw.line(surface, DIVIDER_COL,
@@ -219,12 +219,8 @@ class HUD:
         pygame.draw.circle(surface, SLIDER_COL_KNB, (kx, cy), SLIDER_KNOB_R)
         pygame.draw.circle(surface, (60, 100, 160), (kx, cy), SLIDER_KNOB_R, 1)
 
-        # Fast / Slow labels
-        fast_lbl = self.font_sm.render("fast", True, LABEL_COLOR)
-        slow_lbl = self.font_sm.render("slow", True, LABEL_COLOR)
-        surface.blit(fast_lbl, (x - fast_lbl.get_width() - 3,
-                                 cy - fast_lbl.get_height() // 2))
-        surface.blit(slow_lbl, (x + sw + 3,
-                                 cy - slow_lbl.get_height() // 2))
+        # Endpoint tick marks instead of text labels
+        pygame.draw.line(surface, LABEL_COLOR, (x, cy - 4), (x, cy + 4), 1)
+        pygame.draw.line(surface, LABEL_COLOR, (x + sw, cy - 4), (x + sw, cy + 4), 1)
 
-        return x + sw + slow_lbl.get_width() + 6
+        return x + sw + 6
