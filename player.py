@@ -64,8 +64,9 @@ class Player:
             self.freeze_frames_left -= 1
 
     # ------------------------------------------------------------------
-    def draw(self, surface: pygame.Surface, sprites: dict = None):
-        ts = self.tile_size
+    def draw(self, surface: pygame.Surface, sprites: dict = None, offset: tuple = (0, 0)):
+        ts     = self.tile_size
+        ox, oy = offset
 
         if sprites is not None:
             bot = sprites.get("bot", {})
@@ -91,13 +92,13 @@ class Player:
                 frame = frames[self.anim_frame % len(frames)]
                 if flip_x:
                     frame = pygame.transform.flip(frame, True, False)
-                surface.blit(frame, (self.col * ts, self.row * ts))
+                surface.blit(frame, (self.col * ts + ox, self.row * ts + oy))
                 return
 
         # Fallback: colored rounded rect
         p     = BOT_PADDING
-        x     = self.col * ts + p
-        y     = self.row * ts + p
+        x     = self.col * ts + ox + p
+        y     = self.row * ts + oy + p
         w     = ts - p * 2
         h     = ts - p * 2
         color = BOT_FROZEN_COLOR if self.is_frozen() else BOT_COLOR

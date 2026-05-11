@@ -44,13 +44,15 @@ STATUS_COLORS = {
     "backtracking": (220, 150,  50),
     "found":        (255, 215,  40),
     "no_solution":  (210,  55,  55),
+    "checkpoint":   (100, 220, 255),
 }
 STATUS_LABELS = {
     "idle":         "Waiting...",
     "exploring":    "Exploring...",
     "backtracking": "Backtracking...",
-    "found":        "Goal Found!",
+    "found":        "All Goals Found!",
     "no_solution":  "No Solution Found",
+    "checkpoint":   "Checkpoint!",
 }
 
 # ── Speed slider ──────────────────────────────────────────────────────────────

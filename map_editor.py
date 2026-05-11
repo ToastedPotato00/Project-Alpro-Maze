@@ -12,6 +12,8 @@ Screens:
 import pygame
 import os
 import glob
+from sprite_loader import load_sprites
+from tiles import get_color
 
 # ── Tile palette (no ice) ────────────────────────────────────────────────────
 PALETTE = [
@@ -136,13 +138,13 @@ class MapListScreen:
         cx = self.W // 2
 
         self.btn_new = Button(
-            (cx - 100, self.H - 70, 200, 40),
+            (cx - 140, self.H - 90, 280, 52),
             "＋  New Map",
             color=BTN_ACT, hover_color=ACCENT_HOV,
             text_color=(255,255,255), font=f["md"]
         )
         self.btn_back = Button(
-            (20, self.H - 70, 100, 40),
+            (20, self.H - 90, 140, 52),
             "← Back",
             font=f["sm"]
         )
@@ -157,7 +159,7 @@ class MapListScreen:
         self.map_btns = []
         for i, path in enumerate(self.maps):
             name = os.path.splitext(os.path.basename(path))[0]
-            r    = pygame.Rect(cx - 160, 120 + i * 52, 320, 40)
+            r    = pygame.Rect(cx - 200, 160 + i * 66, 400, 52)
             self.map_btns.append((Button(r, name, font=f["md"]), path))
 
     def run(self):
@@ -191,17 +193,17 @@ class MapListScreen:
 
         # Title
         title = self.fonts["lg"].render("Map Editor", True, TEXT)
-        s.blit(title, title.get_rect(centerx=self.W // 2, y=30))
+        s.blit(title, title.get_rect(centerx=self.W // 2, y=60))
 
         sub = self.fonts["sm"].render("Select a map to edit, or create a new one.",
                                       True, TEXT_DIM)
-        s.blit(sub, sub.get_rect(centerx=self.W // 2, y=70))
+        s.blit(sub, sub.get_rect(centerx=self.W // 2, y=112))
 
         # Map list
         if not self.map_btns:
             msg = self.fonts["sm"].render("No maps found in /maps folder.",
                                           True, TEXT_DIM)
-            s.blit(msg, msg.get_rect(centerx=self.W // 2, y=160))
+            s.blit(msg, msg.get_rect(centerx=self.W // 2, y=300))
         else:
             for btn, _ in self.map_btns:
                 btn.draw(s)
@@ -226,28 +228,28 @@ class NewMapScreen:
         cx = self.W // 2
 
         self.inp_name = TextInput(
-            (cx - 120, 160, 240, 36),
+            (cx - 160, 280, 320, 46),
             placeholder="e.g. map4",
             font=f["md"], max_chars=24
         )
         self.inp_w = TextInput(
-            (cx - 60, 240, 55, 36),
+            (cx - 80, 380, 70, 46),
             placeholder="cols",
             font=f["md"], max_chars=3
         )
         self.inp_h = TextInput(
-            (cx + 10, 240, 55, 36),
+            (cx + 20, 380, 70, 46),
             placeholder="rows",
             font=f["md"], max_chars=3
         )
         self.btn_confirm = Button(
-            (cx - 80, 320, 160, 40),
+            (cx - 110, 480, 220, 52),
             "Create Map",
             color=BTN_ACT, hover_color=ACCENT_HOV,
             text_color=(255,255,255), font=f["md"]
         )
         self.btn_back = Button(
-            (20, self.H - 70, 100, 40),
+            (20, self.H - 90, 140, 52),
             "← Back", font=f["sm"]
         )
 
@@ -307,15 +309,15 @@ class NewMapScreen:
         s.fill(BG)
 
         title = self.fonts["lg"].render("New Map", True, TEXT)
-        s.blit(title, title.get_rect(centerx=cx, y=30))
+        s.blit(title, title.get_rect(centerx=cx, y=160))
 
         # Labels
-        for text, y in [("Map name", 135), ("Size  (W × H)", 215)]:
+        for text, y in [("Map name", 252), ("Size  (W × H)", 352)]:
             lbl = self.fonts["sm"].render(text, True, TEXT_DIM)
-            s.blit(lbl, (cx - 120, y))
+            s.blit(lbl, (cx - 160, y))
 
         x_lbl = self.fonts["sm"].render("×", True, TEXT_DIM)
-        s.blit(x_lbl, x_lbl.get_rect(centerx=cx, centery=258))
+        s.blit(x_lbl, x_lbl.get_rect(centerx=cx, centery=403))
 
         self.inp_name.draw(s)
         self.inp_w.draw(s)
@@ -325,19 +327,20 @@ class NewMapScreen:
 
         if self.error:
             err = self.fonts["sm"].render(self.error, True, (220, 80, 80))
-            s.blit(err, err.get_rect(centerx=cx, y=375))
+            s.blit(err, err.get_rect(centerx=cx, y=550))
 
         pygame.display.flip()
 
 
 # ── Editor screen ─────────────────────────────────────────────────────────────
 
-PALETTE_H    = 90      # height of palette panel at bottom
-MIN_TILE     = 14
-MAX_TILE     = 40
-PAL_ITEM_W   = 72
-PAL_ITEM_H   = 70
-PAL_SPRITE_SIZE = 32   # fixed sprite size for palette swatches
+PALETTE_H    = 120     # height of palette panel at bottom
+TOP_BAR_H    = 60      # height of top bar (map name + buttons)
+MIN_TILE     = 8
+MAX_TILE     = 80
+PAL_ITEM_W   = 120     # 11 tiles × 120 = 1320 px, centred in 1440
+PAL_ITEM_H   = 100
+PAL_SPRITE_SIZE = 64   # larger sprites now that palette is taller
 
 
 class EditorScreen:
@@ -351,15 +354,18 @@ class EditorScreen:
         self.rows = len(grid)
         self.cols = len(grid[0])
 
-        # Compute tile size to fit canvas area (above palette)
-        canvas_h = self.H - PALETTE_H
+        # Compute tile size to fit canvas area (between top bar and palette)
+        canvas_h = self.H - PALETTE_H - TOP_BAR_H
         ts_by_w  = self.W // self.cols
         ts_by_h  = canvas_h // self.rows
         self.ts  = max(MIN_TILE, min(MAX_TILE, ts_by_w, ts_by_h))
 
-        # Canvas offset (centre the grid)
+        # Canvas offset (centre the grid inside the canvas band)
         self.off_x = (self.W - self.cols * self.ts) // 2
-        self.off_y = max(0, (canvas_h - self.rows * self.ts) // 2)
+        self.off_y = TOP_BAR_H + max(0, (canvas_h - self.rows * self.ts) // 2)
+
+        self._pan_start  = None   # middle-mouse pan anchor
+        self._pan_origin = (0, 0)
 
         self.selected_tile = "#"
         self.painting      = False    # mouse held down
@@ -367,7 +373,6 @@ class EditorScreen:
         self.saved_msg     = ""
         self.saved_timer   = 0
 
-        from sprite_loader import load_sprites
         self.sprites     = load_sprites(self.ts)          # canvas tile sprites
         self.pal_sprites = load_sprites(PAL_SPRITE_SIZE)  # palette swatch sprites
 
@@ -388,14 +393,24 @@ class EditorScreen:
     def _build_buttons(self):
         f = self.fonts
         self.btn_save = Button(
-            (self.W - 120, 8, 110, 34),
+            (self.W - 150, 10, 138, 40),
             "💾  Save", color=BTN_ACT, hover_color=ACCENT_HOV,
             text_color=(255,255,255), font=f["sm"]
         )
         self.btn_back = Button(
-            (10, 8, 90, 34),
+            (10, 10, 120, 40),
             "← Back", font=f["sm"]
         )
+
+    # ── Zoom / pan helpers ────────────────────────────────────────────────────
+    def _clamp_offsets(self):
+        margin   = 60
+        grid_w   = self.cols * self.ts
+        grid_h   = self.rows * self.ts
+        canvas_bot = self.H - PALETTE_H
+        self.off_x = max(margin - grid_w, min(self.W - margin, self.off_x))
+        self.off_y = max(TOP_BAR_H + margin - grid_h,
+                         min(canvas_bot - margin, self.off_y))
 
     # ── Main loop ─────────────────────────────────────────────────────────────
     def run(self):
@@ -437,6 +452,33 @@ class EditorScreen:
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
                     self._try_paint(event.pos, force_sym=".")
 
+                # Middle-mouse drag to pan
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 2:
+                    self._pan_start  = event.pos
+                    self._pan_origin = (self.off_x, self.off_y)
+                if event.type == pygame.MOUSEBUTTONUP and event.button == 2:
+                    self._pan_start = None
+                if event.type == pygame.MOUSEMOTION and self._pan_start:
+                    dx = event.pos[0] - self._pan_start[0]
+                    dy = event.pos[1] - self._pan_start[1]
+                    self.off_x = self._pan_origin[0] + dx
+                    self.off_y = self._pan_origin[1] + dy
+                    self._clamp_offsets()
+
+                # Scroll wheel to zoom (centred on mouse cursor)
+                if event.type == pygame.MOUSEWHEEL:
+                    mx, my  = pygame.mouse.get_pos()
+                    old_ts  = self.ts
+                    new_ts  = max(MIN_TILE, min(MAX_TILE, old_ts + event.y * 2))
+                    if new_ts != old_ts:
+                        mc = (mx - self.off_x) / old_ts
+                        mr = (my - self.off_y) / old_ts
+                        self.off_x = int(mx - mc * new_ts)
+                        self.off_y = int(my - mr * new_ts)
+                        self.ts    = new_ts
+                        self._clamp_offsets()
+                        self.sprites = load_sprites(self.ts)
+
             if self.painting:
                 self._try_paint(pygame.mouse.get_pos())
 
@@ -458,8 +500,8 @@ class EditorScreen:
         # Don't let user paint over the outer border wall
         if row == 0 or row == self.rows-1 or col == 0 or col == self.cols-1:
             return
-        # Don't paint in palette area
-        if py >= self.H - PALETTE_H:
+        # Don't paint in palette or top bar UI areas
+        if py >= self.H - PALETTE_H or py < TOP_BAR_H:
             return
 
         sym = force_sym if force_sym else self.selected_tile
@@ -483,11 +525,12 @@ class EditorScreen:
         s = self.surface
         s.fill(BG)
 
-        # ── Grid ──────────────────────────────────────────────────────────────
-        from tiles import get_color
+        # ── Grid (clipped to canvas band) ─────────────────────────────────────
         ts  = self.ts
         ox  = self.off_x
         oy  = self.off_y
+
+        s.set_clip(pygame.Rect(0, TOP_BAR_H, self.W, self.H - PALETTE_H - TOP_BAR_H))
 
         tile_sprites = self.sprites.get("tiles", {}) if self.sprites else {}
         tile_anims   = self.sprites.get("tile_anims", {}) if self.sprites else {}
@@ -515,12 +558,14 @@ class EditorScreen:
         hc = (mx - ox) // ts
         hr = (my - oy) // ts
         if (0 < hr < self.rows-1 and 0 < hc < self.cols-1
-                and my < self.H - PALETTE_H):
+                and TOP_BAR_H <= my < self.H - PALETTE_H):
             hx = ox + hc * ts
             hy = oy + hr * ts
             hover_surf = pygame.Surface((ts, ts), pygame.SRCALPHA)
             hover_surf.fill((255, 255, 255, 40))
             s.blit(hover_surf, (hx, hy))
+
+        s.set_clip(None)
 
         # ── Palette panel ─────────────────────────────────────────────────────
         pal_y = self.H - PALETTE_H
@@ -549,29 +594,33 @@ class EditorScreen:
                 sym_lbl = self.fonts["md"].render(sym, True, (255, 255, 255))
                 s.blit(sym_lbl, sym_lbl.get_rect(centerx=rect.centerx, y=rect.y + 6))
 
-            # Name label — dark pill for contrast, white text
-            name_lbl = self.fonts["sm"].render(label, True, (240, 240, 240))
+            # Name label — dark pill clamped to tile width, white text
+            name_lbl = self.fonts["xs"].render(label, True, (240, 240, 240))
             lw, lh   = name_lbl.get_size()
-            pill     = pygame.Surface((lw + 8, lh + 2), pygame.SRCALPHA)
+            pill_w   = min(lw + 8, rect.width)          # never wider than swatch
+            pill     = pygame.Surface((pill_w, lh + 2), pygame.SRCALPHA)
             pill.fill((0, 0, 0, 150))
-            pill_x = rect.centerx - (lw + 8) // 2
-            pill_y = rect.bottom - lh - 5
+            pill_x   = rect.centerx - pill_w // 2
+            pill_y   = rect.bottom - lh - 5
             s.blit(pill, (pill_x, pill_y))
+            clip_before = s.get_clip()
+            s.set_clip(pygame.Rect(pill_x + 2, pill_y, pill_w - 4, lh + 2))
             s.blit(name_lbl, (pill_x + 4, pill_y + 1))
+            s.set_clip(clip_before)
 
         # ── Top bar ───────────────────────────────────────────────────────────
-        pygame.draw.rect(s, PANEL_BG, (0, 0, self.W, 50))
-        pygame.draw.line(s, BORDER, (0, 50), (self.W, 50), 1)
+        pygame.draw.rect(s, PANEL_BG, (0, 0, self.W, TOP_BAR_H))
+        pygame.draw.line(s, BORDER, (0, TOP_BAR_H), (self.W, TOP_BAR_H), 1)
 
         map_name = os.path.splitext(os.path.basename(self.map_path))[0]
         title = self.fonts["md"].render(
             f"{map_name}   {self.cols}×{self.rows}", True, TEXT)
-        s.blit(title, title.get_rect(centerx=self.W//2, centery=25))
+        s.blit(title, title.get_rect(centerx=self.W//2, centery=TOP_BAR_H//3))
 
         hint = self.fonts["xs"].render(
-            "Left-click: paint   Right-click: erase   Ctrl+S: save",
-            True, TEXT_DIM)
-        s.blit(hint, hint.get_rect(centerx=self.W//2, y=52))
+            "LClick: paint   RClick: erase   Scroll: zoom   Mid-drag: pan   Ctrl+S: save",
+            True, TEXT)
+        s.blit(hint, hint.get_rect(centerx=self.W//2, centery=TOP_BAR_H*2//3))
 
         self.btn_save.draw(s)
         self.btn_back.draw(s)
@@ -579,10 +628,10 @@ class EditorScreen:
         # Saved / error feedback
         if self.saved_timer > 0:
             msg = self.fonts["sm"].render("✓ Saved!", True, (80, 220, 80))
-            s.blit(msg, (self.W - 230, 8))
+            s.blit(msg, msg.get_rect(right=self.W - 160, centery=TOP_BAR_H // 3))
         if self.error_msg:
             msg = self.fonts["sm"].render(self.error_msg, True, (220, 80, 80))
-            s.blit(msg, (self.W - 400, 8))
+            s.blit(msg, msg.get_rect(right=self.W - 160, centery=TOP_BAR_H // 3))
 
         pygame.display.flip()
 
@@ -629,10 +678,10 @@ def run_editor(surface):
     """
     pygame.font.init()
     fonts = {
-        "lg": pygame.font.SysFont("monospace", 28, bold=True),
-        "md": pygame.font.SysFont("monospace", 16, bold=True),
-        "sm": pygame.font.SysFont("monospace", 14),
-        "xs": pygame.font.SysFont("monospace", 11),
+        "lg": pygame.font.SysFont("monospace", 36, bold=True),
+        "md": pygame.font.SysFont("monospace", 20, bold=True),
+        "sm": pygame.font.SysFont("monospace", 16),
+        "xs": pygame.font.SysFont("monospace", 13),
     }
 
     screen_name = "list"

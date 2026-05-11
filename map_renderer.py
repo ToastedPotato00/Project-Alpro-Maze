@@ -28,15 +28,16 @@ class MapRenderer:
             self._font = pygame.font.SysFont("monospace", max(10, tile_size // 3), bold=True)
 
     # ------------------------------------------------------------------
-    def draw(self, surface: pygame.Surface, ticks: int = 0):
+    def draw(self, surface: pygame.Surface, ticks: int = 0, offset: tuple = (0, 0)):
         ts           = self.tile_size
+        ox, oy       = offset
         tile_sprites = self.sprites.get("tiles", {}) if self.sprites else {}
         tile_anims   = self.sprites.get("tile_anims", {}) if self.sprites else {}
 
         for r, row in enumerate(self.grid):
             for c, symbol in enumerate(row):
-                x    = c * ts
-                y    = r * ts
+                x    = c * ts + ox
+                y    = r * ts + oy
                 rect = pygame.Rect(x, y, ts, ts)
 
                 if symbol in tile_anims:
@@ -58,6 +59,14 @@ class MapRenderer:
         cx         = x + (ts - lw) // 2
         cy         = y + (ts - lh) // 2
         surface.blit(label_surf, (cx, cy))
+
+    # ------------------------------------------------------------------
+    def set_tile_size(self, ts: int):
+        self.tile_size = ts
+        if ts >= LABEL_MIN_TILE:
+            self._font = pygame.font.SysFont("monospace", max(10, ts // 3), bold=True)
+        else:
+            self._font = None
 
     # ------------------------------------------------------------------
     def update_grid(self, grid: list):
