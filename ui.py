@@ -104,7 +104,8 @@ class HUD:
         self._slider_frac = max(0.0, min(1.0, (mouse_x - rx) / rw))
 
     # ── Draw ─────────────────────────────────────────────────────────────────
-    def draw(self, surface: pygame.Surface, player, status: str):
+    def draw(self, surface: pygame.Surface, player, status: str,
+             algo_label: str = "Classic DFS") -> pygame.Rect:
         hud_rect = pygame.Rect(0, self.hud_y, self.screen_w, HUD_HEIGHT)
         pygame.draw.rect(surface, HUD_BG, hud_rect)
         pygame.draw.line(surface, HUD_BORDER,
@@ -143,22 +144,38 @@ class HUD:
         sp_lbl = self.font_sm.render("SPEED", True, LABEL_COLOR)
         surface.blit(sp_lbl, (x, cy - sp_lbl.get_height() // 2))
         x += sp_lbl.get_width() + 6
-        self._draw_slider(surface, x, cy)
+        x = self._draw_slider(surface, x, cy)
 
-        # ── Zone 4: Status + hint (right-anchored, stacked) ──────────────────
+        # ── Zone 4: ALGO dropdown trigger button ─────────────────────────────
+        self._draw_divider(surface, x + 4, cy)
+        algo_x   = x + 14
+        abtn_w   = 185
+        abtn_h   = HUD_HEIGHT - 16
+        algo_btn = pygame.Rect(algo_x, self.hud_y + 8, abtn_w, abtn_h)
+        pygame.draw.rect(surface, (40, 40, 62), algo_btn, border_radius=6)
+        pygame.draw.rect(surface, (65, 65, 92), algo_btn, 1, border_radius=6)
+        al_surf  = self.font_sm.render(f"{algo_label}  ▼", True, (160, 195, 240))
+        surface.blit(al_surf, al_surf.get_rect(center=algo_btn.center))
+
+        # ── Zone 5: Status + hint (right-anchored, vertically centred as pair) ──
         slabel = STATUS_LABELS.get(status, status)
         scolor = STATUS_COLORS.get(status, TEXT_COLOR)
         stxt   = self.font.render(slabel, True, scolor)
-        sx     = self.screen_w - stxt.get_width() - PADDING
-        # Colored accent bar on left of status zone
-        pygame.draw.rect(surface, scolor,
-                         (sx - 6, self.hud_y + 10, 3, HUD_HEIGHT - 20),
-                         border_radius=1)
-        surface.blit(stxt, (sx, self.hud_y + 8))
+        hint   = self.font_sm.render("R restart   ESC menu", True, (80, 80, 105))
 
-        hint = self.font_sm.render("R restart   ESC menu", True, (80, 80, 105))
-        hx   = self.screen_w - hint.get_width() - PADDING
-        surface.blit(hint, (hx, self.hud_y + HUD_HEIGHT - hint.get_height() - 5))
+        line_gap   = 4
+        block_h    = stxt.get_height() + line_gap + hint.get_height()
+        block_top  = self.hud_y + (HUD_HEIGHT - block_h) // 2
+
+        sx = self.screen_w - max(stxt.get_width(), hint.get_width()) - PADDING
+        pygame.draw.rect(surface, scolor,
+                         (sx - 6, block_top, 3, block_h),
+                         border_radius=1)
+        surface.blit(stxt, (sx, block_top))
+        hx = self.screen_w - hint.get_width() - PADDING
+        surface.blit(hint, (hx, block_top + stxt.get_height() + line_gap))
+
+        return algo_btn
 
     # ── Internal draw helpers ─────────────────────────────────────────────────
 

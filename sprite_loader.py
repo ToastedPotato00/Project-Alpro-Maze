@@ -30,6 +30,7 @@ CUSTOM_TILE_ANIMS  = {
     "M": "mud.png",
     "T": "teleport b.png",
     "t": "teleport p.png",
+    "K": "key.png"
 }
 
 # (grid_col, grid_row) — zero-indexed into the spritesheet grid

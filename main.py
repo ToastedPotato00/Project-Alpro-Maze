@@ -62,6 +62,89 @@ class Btn:
                 and self.rect.collidepoint(e.pos))
 
 
+# ── Algorithm picker ─────────────────────────────────────────────────────────
+ALGOS = [
+    ("classic",  "Classic DFS",  "First valid path"),
+    ("chained",  "Chained DFS",  "All goals in sequence"),
+    ("optimize", "Optimize DFS", "Best scored path"),
+]
+ALGO_LABELS = {k: name for k, name, _ in ALGOS}
+
+
+class AlgoDropdown:
+    PANEL_W = 230
+    ROW_H   = 44
+
+    def __init__(self, default):
+        pygame.font.init()
+        self.current  = default
+        self.open     = False
+        self._pending = None
+        self._panel   = None
+        self._fn      = pygame.font.SysFont("monospace", 13, bold=True)
+        self._fs      = pygame.font.SysFont("monospace", 11)
+
+    @property
+    def label(self):
+        return ALGO_LABELS.get(self.current, self.current)
+
+    @property
+    def pending_algo(self):
+        return self._pending is not None
+
+    def consume(self):
+        a, self._pending = self._pending, None
+        return a
+
+    def handle_event(self, event, btn_rect):
+        if event.type != pygame.MOUSEBUTTONDOWN or event.button != 1:
+            return False
+        pos = event.pos
+        if btn_rect and btn_rect.collidepoint(pos):
+            self.open = not self.open
+            return True
+        if self.open and self._panel and self._panel.collidepoint(pos):
+            idx = (pos[1] - self._panel.y) // self.ROW_H
+            if 0 <= idx < len(ALGOS):
+                key = ALGOS[idx][0]
+                if key != "optimize":
+                    if key != self.current:
+                        self.current  = key
+                        self._pending = key
+                    self.open = False
+            return True
+        if self.open:
+            self.open = False
+        return False
+
+    def draw(self, surface, btn_rect):
+        if not self.open:
+            self._panel = None
+            return
+        ph = len(ALGOS) * self.ROW_H
+        px = btn_rect.x
+        py = btn_rect.y - ph - 4
+        self._panel = pygame.Rect(px, py, self.PANEL_W, ph)
+        pygame.draw.rect(surface, (18, 18, 28), self._panel, border_radius=8)
+        pygame.draw.rect(surface, (60, 60, 85), self._panel, 1, border_radius=8)
+        mp = pygame.mouse.get_pos()
+        for i, (key, name, desc) in enumerate(ALGOS):
+            rr       = pygame.Rect(px, py + i * self.ROW_H, self.PANEL_W, self.ROW_H)
+            disabled = (key == "optimize")
+            active   = (key == self.current)
+            if active:
+                pygame.draw.rect(surface, (45, 90, 175), rr, border_radius=4)
+            elif not disabled and rr.collidepoint(mp):
+                pygame.draw.rect(surface, (35, 35, 58), rr, border_radius=4)
+            nc = (255,255,255) if active else ((65,65,78) if disabled else (185,185,205))
+            dc = (160,200,255) if active else ((50,50,62) if disabled else (95,95,115))
+            ds = desc if not disabled else desc + "  •  Coming soon"
+            surface.blit(self._fn.render(name, True, nc),
+                         (px + 10, py + i * self.ROW_H + 5))
+            surface.blit(self._fs.render(ds,   True, dc),
+                         (px + 10, py + i * self.ROW_H + 23))
+
+
 # ── Start / map-select screen ─────────────────────────────────────────────────
 def start_screen(screen):
     pygame.font.init()
@@ -71,10 +154,10 @@ def start_screen(screen):
     clock   = pygame.time.Clock()
     cx      = SCREEN_W // 2
 
-    btn_play   = Btn((cx-140, 420, 280, 58), "▶  Play",
+    btn_play   = Btn((cx-140, 302, 280, 58), "▶  Play",
                      font_md, color=BTN_ACT, hover=ACCENT_HOV, tc=(255,255,255))
-    btn_editor = Btn((cx-140, 496, 280, 58), "✏  Map Editor", font_md)
-    btn_quit   = Btn((cx-140, 572, 280, 58), "✕  Quit", font_md)
+    btn_editor = Btn((cx-140, 376, 280, 58), "✏  Map Editor", font_md)
+    btn_quit   = Btn((cx-140, 450, 280, 58), "✕  Quit", font_md)
 
     while True:
         mp = pygame.mouse.get_pos()
@@ -92,9 +175,7 @@ def start_screen(screen):
 
         screen.fill(BG)
         title = font_lg.render("MazeCrawler", True, TEXT)
-        screen.blit(title, title.get_rect(centerx=cx, y=280))
-        sub = font_sm.render("A Backtracking Visualizer", True, TEXT_DIM)
-        screen.blit(sub, sub.get_rect(centerx=cx, y=348))
+        screen.blit(title, title.get_rect(centerx=cx, y=192))
 
         for b in (btn_play, btn_editor, btn_quit):
             b.draw(screen)
@@ -118,14 +199,31 @@ def map_select_screen(screen):
         stem = filename[:-4]
         return stem.replace("_", " ").title()
 
-    btn_h, btn_gap = 58, 12
-    start_y = 380
+    btn_h, btn_gap = 54, 10
+    back_h, back_gap = 48, 18
+    n = len(maps)
+
+    # Measure approximate font heights for centering the whole block
+    TITLE_H      = 52
+    SUB_H        = 18
+    TITLE_TO_SUB = 12
+    SUB_TO_BTNS  = 22
+
+    btns_block_h = n * btn_h + max(0, n - 1) * btn_gap if n else 0
+    total_h      = TITLE_H + TITLE_TO_SUB + SUB_H + SUB_TO_BTNS + btns_block_h + back_gap + back_h
+    block_top    = (SCREEN_H - total_h) // 2
+
+    title_y = block_top
+    sub_y   = block_top + TITLE_H + TITLE_TO_SUB
+    start_y = block_top + TITLE_H + TITLE_TO_SUB + SUB_H + SUB_TO_BTNS
+
     map_btns = [
         Btn((cx - 140, start_y + i * (btn_h + btn_gap), 280, btn_h),
             label(m), font_md)
         for i, m in enumerate(maps)
     ]
-    btn_back = Btn((cx - 100, 820, 200, 52), "← Back", font_md)
+    back_y   = start_y + btns_block_h + back_gap
+    btn_back = Btn((cx - 100, back_y, 200, back_h), "← Back", font_md)
 
     while True:
         mp = pygame.mouse.get_pos()
@@ -146,9 +244,9 @@ def map_select_screen(screen):
 
         screen.fill(BG)
         title = font_lg.render("Select a Map", True, TEXT)
-        screen.blit(title, title.get_rect(centerx=cx, y=260))
+        screen.blit(title, title.get_rect(centerx=cx, y=title_y))
         sub = font_sm.render("Choose a map to run the algorithm on", True, TEXT_DIM)
-        screen.blit(sub, sub.get_rect(centerx=cx, y=328))
+        screen.blit(sub, sub.get_rect(centerx=cx, y=sub_y))
 
         if maps:
             for b in map_btns:
@@ -169,7 +267,7 @@ def make_overlay(tile_size, r, g, b, a):
     return s
 
 
-def build_run(grid_master, tile_size):
+def build_run(grid_master, tile_size, algo):
     grid   = copy.deepcopy(grid_master)
     starts = find_tile(grid, "S")
     goals  = find_tile(grid, "G")
@@ -177,9 +275,9 @@ def build_run(grid_master, tile_size):
     if not goals:
         goals = [(len(grid)-2, len(grid[0])-2)]
     player = Player(start[0], start[1], tile_size)
-    if len(goals) > 1:
+    if algo == "chained":
         gen = dfs_chained(grid, player, start, goals)
-    else:
+    else:  # "classic" or "optimize" (optimize placeholder until Map 3)
         gen = dfs_backtrack(grid, player, start, goals[0])
     return grid, player, gen, goals
 
@@ -229,13 +327,26 @@ def run_game(screen, map_path):
     sprites    = load_sprites(ts)
     trail_surf = make_overlay(ts, *TRAIL_COLOR, TRAIL_ALPHA)
     bt_surf    = make_overlay(ts, 255, 120, 60, BT_ALPHA)
+    gold_surf  = make_overlay(ts, 255, 215, 40, 110)
 
-    grid, player, gen, goals = build_run(grid_master, ts)
+    # Default algo: map3 filename → optimize, multi-goal → chained, else classic
+    goals_init = find_tile(grid_master, "G")
+    if "map3" in os.path.basename(map_path).lower():
+        algo = "optimize"
+    elif len(goals_init) > 1:
+        algo = "chained"
+    else:
+        algo = "classic"
+    dropdown      = AlgoDropdown(algo)
+    algo_btn_rect = None
+
+    grid, player, gen, goals = build_run(grid_master, ts, algo)
     renderer = MapRenderer(grid, ts, sprites=sprites)
     hud      = HUD(SCREEN_W, SCREEN_H)
 
     visited_cells    = {(player.row, player.col)}
     backtrack_cells  = set()
+    solution_path    = [(player.row, player.col)]
     active_goal_idx  = 0
     status    = "idle"
     finished  = False
@@ -251,12 +362,16 @@ def run_game(screen, map_path):
                 return "quit"
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    return "menu"
-                if event.key == pygame.K_r:
-                    grid, player, gen, goals = build_run(grid_master, ts)
+                    if dropdown.open:
+                        dropdown.open = False
+                    else:
+                        return "menu"
+                if event.key == pygame.K_r and not dropdown.open:
+                    grid, player, gen, goals = build_run(grid_master, ts, algo)
                     renderer.update_grid(grid)
                     visited_cells   = {(player.row, player.col)}
                     backtrack_cells = set()
+                    solution_path   = [(player.row, player.col)]
                     active_goal_idx = 0
                     status    = "idle"
                     finished  = False
@@ -271,7 +386,21 @@ def run_game(screen, map_path):
                     renderer.sprites = sprites
                     trail_surf = make_overlay(ts, *TRAIL_COLOR, TRAIL_ALPHA)
                     bt_surf    = make_overlay(ts, 255, 120, 60, BT_ALPHA)
-            hud.handle_event(event)
+                    gold_surf  = make_overlay(ts, 255, 215, 40, 110)
+            if not dropdown.handle_event(event, algo_btn_rect):
+                hud.handle_event(event)
+
+        if dropdown.pending_algo:
+            algo = dropdown.consume()
+            grid, player, gen, goals = build_run(grid_master, ts, algo)
+            renderer.update_grid(grid)
+            visited_cells   = {(player.row, player.col)}
+            backtrack_cells = set()
+            solution_path   = [(player.row, player.col)]
+            active_goal_idx = 0
+            status    = "idle"
+            finished  = False
+            last_step = now
 
         if player.is_frozen():
             player.tick_freeze()
@@ -289,6 +418,7 @@ def run_game(screen, map_path):
                         player.is_backtrack = False
                         visited_cells.add((r, c))
                         backtrack_cells.discard((r, c))
+                        solution_path.append((r, c))
                         renderer.update_grid(grid)
                         if extra.get("freeze_frames", 0) > 0:
                             player.freeze_frames_left = extra["freeze_frames"]
@@ -297,6 +427,8 @@ def run_game(screen, map_path):
                         player.is_active    = True
                         player.is_backtrack = True
                         backtrack_cells.add((r, c))
+                        if len(solution_path) > 1:
+                            solution_path.pop()
                         renderer.update_grid(grid)
                     elif kind == "segment_found":
                         active_goal_idx += 1
@@ -332,6 +464,10 @@ def run_game(screen, map_path):
         for (vr, vc) in backtrack_cells:
             game_screen.blit(bt_surf, (vc * ts - cam_x, vr * ts - cam_y))
 
+        if status == "found":
+            for (vr, vc) in solution_path:
+                game_screen.blit(gold_surf, (vc * ts - cam_x, vr * ts - cam_y))
+
         player.draw(game_screen, sprites, offset=offset)
 
         pulse = abs((pygame.time.get_ticks() % 1000) - 500) / 500
@@ -346,7 +482,8 @@ def run_game(screen, map_path):
                                  (gx, gy, ts, ts), 1)
 
         game_screen.set_clip(None)
-        hud.draw(game_screen, player, status)
+        algo_btn_rect = hud.draw(game_screen, player, status, dropdown.label)
+        dropdown.draw(game_screen, algo_btn_rect)
         pygame.display.flip()
         clock.tick(FPS)
 
