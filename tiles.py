@@ -36,6 +36,13 @@ FIRE_DAMAGE  = 25
 REGEN_HEAL   = 15
 REGEN_CAP    = 100
 
+DIFF_CONFIGS = {
+    "easy":     {"fire": 12, "mud_freeze": 1, "mud_step": 1, "start_hp": 100},
+    "medium":   {"fire": 25, "mud_freeze": 2, "mud_step": 3, "start_hp": 100},
+    "hard":     {"fire": 37, "mud_freeze": 3, "mud_step": 4, "start_hp": 100},
+    "hardcore": {"fire": 50, "mud_freeze": 4, "mud_step": 6, "start_hp":   1},
+}
+
 
 def get_color(symbol: str):
     return TILE_COLORS.get(symbol, DEFAULT_COLOR)
@@ -65,20 +72,21 @@ def build_teleporter_map(grid) -> dict:
         teleporters[b] = a
     return teleporters
 
-def apply_tile_effect(symbol: str, player, grid, teleporter_map: dict):
+def apply_tile_effect(symbol: str, player, grid, teleporter_map: dict, diff=None):
+    step_cost = diff["mud_step"] if (diff and symbol == "M") else get_step_cost(symbol)
     result = {
         "freeze_frames": 0,
         "teleported_to": None,
         "key_picked_up": False,
         "wall_broken":   False,
-        "step_cost":     get_step_cost(symbol),
+        "step_cost":     step_cost,
     }
     if symbol == "F":
-        player.hp -= FIRE_DAMAGE
+        player.hp -= diff["fire"] if diff else FIRE_DAMAGE
     elif symbol == "R":
         player.hp = min(REGEN_CAP, player.hp + REGEN_HEAL)
     elif symbol == "M":
-        result["freeze_frames"] = MUD_FREEZE_FRAMES
+        result["freeze_frames"] = diff["mud_freeze"] if diff else MUD_FREEZE_FRAMES
     elif symbol in ("T", "t"):
         dest = teleporter_map.get((player.row, player.col))
         if dest:

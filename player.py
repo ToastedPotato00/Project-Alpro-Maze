@@ -17,12 +17,12 @@ ANIM_TICKS_PER_FRAME = 8   # advance animation frame every 8 draw calls (~7.5 fp
 
 
 class Player:
-    def __init__(self, row: int, col: int, tile_size: int):
+    def __init__(self, row: int, col: int, tile_size: int, start_hp: int = 100):
         self.row       = row
         self.col       = col
         self.tile_size = tile_size
         self.keys      = 0
-        self.hp        = 100
+        self.hp        = start_hp
         self.steps     = 0
         self.freeze_frames_left = 0   # mud freeze countdown
         self.direction    = "down"    # last movement direction for sprite selection

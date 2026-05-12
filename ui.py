@@ -45,14 +45,18 @@ STATUS_COLORS = {
     "found":        (255, 215,  40),
     "no_solution":  (210,  55,  55),
     "checkpoint":   (100, 220, 255),
+    "candidate":    (255, 160,  40),
+    "replaying":    ( 80, 210, 255),
 }
 STATUS_LABELS = {
     "idle":         "Waiting...",
     "exploring":    "Exploring...",
     "backtracking": "Backtracking...",
-    "found":        "All Goals Found!",
+    "found":        "Goal Reached!",
     "no_solution":  "No Solution Found",
     "checkpoint":   "Checkpoint!",
+    "candidate":    "Candidate found!",
+    "replaying":    "Replaying best...",
 }
 
 # ── Speed slider ──────────────────────────────────────────────────────────────
@@ -105,7 +109,8 @@ class HUD:
 
     # ── Draw ─────────────────────────────────────────────────────────────────
     def draw(self, surface: pygame.Surface, player, status: str,
-             algo_label: str = "Classic DFS") -> pygame.Rect:
+             algo_label: str = "Classic DFS", score=None,
+             diff_label: str = "Medium") -> tuple:
         hud_rect = pygame.Rect(0, self.hud_y, self.screen_w, HUD_HEIGHT)
         pygame.draw.rect(surface, HUD_BG, hud_rect)
         pygame.draw.line(surface, HUD_BORDER,
@@ -146,36 +151,49 @@ class HUD:
         x += sp_lbl.get_width() + 6
         x = self._draw_slider(surface, x, cy)
 
-        # ── Zone 4: ALGO dropdown trigger button ─────────────────────────────
+        # ── Zone 4: ALGO + DIFF dropdown trigger buttons ─────────────────────
         self._draw_divider(surface, x + 4, cy)
-        algo_x   = x + 14
-        abtn_w   = 185
-        abtn_h   = HUD_HEIGHT - 16
-        algo_btn = pygame.Rect(algo_x, self.hud_y + 8, abtn_w, abtn_h)
+        btn_x  = x + 14
+        abtn_w = 185
+        dbtn_w = 130
+        abtn_h = HUD_HEIGHT - 16
+        btn_gap = 6
+
+        algo_btn = pygame.Rect(btn_x, self.hud_y + 8, abtn_w, abtn_h)
         pygame.draw.rect(surface, (40, 40, 62), algo_btn, border_radius=6)
         pygame.draw.rect(surface, (65, 65, 92), algo_btn, 1, border_radius=6)
         al_surf  = self.font_sm.render(f"{algo_label}  ▼", True, (160, 195, 240))
         surface.blit(al_surf, al_surf.get_rect(center=algo_btn.center))
 
-        # ── Zone 5: Status + hint (right-anchored, vertically centred as pair) ──
-        slabel = STATUS_LABELS.get(status, status)
-        scolor = STATUS_COLORS.get(status, TEXT_COLOR)
-        stxt   = self.font.render(slabel, True, scolor)
-        hint   = self.font_sm.render("R restart   ESC menu", True, (80, 80, 105))
+        diff_btn = pygame.Rect(btn_x + abtn_w + btn_gap, self.hud_y + 8, dbtn_w, abtn_h)
+        pygame.draw.rect(surface, (40, 40, 62), diff_btn, border_radius=6)
+        pygame.draw.rect(surface, (65, 65, 92), diff_btn, 1, border_radius=6)
+        df_surf  = self.font_sm.render(f"{diff_label}  ▼", True, (200, 160, 240))
+        surface.blit(df_surf, df_surf.get_rect(center=diff_btn.center))
 
-        line_gap   = 4
-        block_h    = stxt.get_height() + line_gap + hint.get_height()
-        block_top  = self.hud_y + (HUD_HEIGHT - block_h) // 2
+        # ── Zone 5: Status + [score] + hint (right-anchored, vertically centred) ──
+        slabel     = STATUS_LABELS.get(status, status)
+        scolor     = STATUS_COLORS.get(status, TEXT_COLOR)
+        stxt       = self.font.render(slabel, True, scolor)
+        score_surf = (self.font_sm.render(f"Score: {score}", True, (200, 200, 150))
+                      if score is not None else None)
+        hint       = self.font_sm.render("R restart   ESC menu", True, (80, 80, 105))
 
-        sx = self.screen_w - max(stxt.get_width(), hint.get_width()) - PADDING
+        line_gap = 4
+        lines    = [stxt] + ([score_surf] if score_surf else []) + [hint]
+        block_h  = sum(l.get_height() for l in lines) + line_gap * (len(lines) - 1)
+        block_top = self.hud_y + (HUD_HEIGHT - block_h) // 2
+
+        max_w = max(l.get_width() for l in lines)
         pygame.draw.rect(surface, scolor,
-                         (sx - 6, block_top, 3, block_h),
+                         (self.screen_w - max_w - PADDING - 6, block_top, 3, block_h),
                          border_radius=1)
-        surface.blit(stxt, (sx, block_top))
-        hx = self.screen_w - hint.get_width() - PADDING
-        surface.blit(hint, (hx, block_top + stxt.get_height() + line_gap))
+        y = block_top
+        for l in lines:
+            surface.blit(l, (self.screen_w - l.get_width() - PADDING, y))
+            y += l.get_height() + line_gap
 
-        return algo_btn
+        return algo_btn, diff_btn
 
     # ── Internal draw helpers ─────────────────────────────────────────────────
 
