@@ -81,6 +81,15 @@ DIFFS = [
 ]
 DIFF_LABELS = {k: name for k, name, _ in DIFFS}
 
+# ── Speed picker ──────────────────────────────────────────────────────────────
+SPEEDS = [
+    ("fast",   "Fast",   "0.01s / step",  0.01),
+    ("normal", "Normal", "0.25s / step",  0.25),
+    ("slow",   "Slow",   "0.50s / step",  0.50),
+]
+SPEED_DELAYS = {k: d for k, _, _, d in SPEEDS}
+SPEED_LABELS = {k: n for k, n, _, _ in SPEEDS}
+
 
 class AlgoDropdown:
     PANEL_W = 230
@@ -220,6 +229,70 @@ class DiffDropdown:
                 pygame.draw.rect(surface, (35, 35, 58), rr, border_radius=4)
             nc = (255, 255, 255) if active else (185, 185, 205)
             dc = (200, 160, 255) if active else (95,  95,  115)
+            surface.blit(self._fn.render(name, True, nc),
+                         (px + 10, py + i * self.ROW_H + 5))
+            surface.blit(self._fs.render(desc, True, dc),
+                         (px + 10, py + i * self.ROW_H + 23))
+
+
+# ── Speed dropdown ────────────────────────────────────────────────────────────
+class SpeedDropdown:
+    PANEL_W = 190
+    ROW_H   = 44
+
+    def __init__(self, default="normal"):
+        pygame.font.init()
+        self.current = default
+        self.open    = False
+        self._panel  = None
+        self._fn     = pygame.font.SysFont("monospace", 13, bold=True)
+        self._fs     = pygame.font.SysFont("monospace", 11)
+
+    @property
+    def label(self):
+        return SPEED_LABELS.get(self.current, self.current)
+
+    @property
+    def delay(self):
+        return SPEED_DELAYS.get(self.current, 0.25)
+
+    def handle_event(self, event, btn_rect):
+        if event.type != pygame.MOUSEBUTTONDOWN or event.button != 1:
+            return False
+        pos = event.pos
+        if btn_rect and btn_rect.collidepoint(pos):
+            self.open = not self.open
+            return True
+        if self.open and self._panel and self._panel.collidepoint(pos):
+            idx = (pos[1] - self._panel.y) // self.ROW_H
+            if 0 <= idx < len(SPEEDS):
+                self.current = SPEEDS[idx][0]
+                self.open    = False
+            return True
+        if self.open:
+            self.open = False
+        return False
+
+    def draw(self, surface, btn_rect):
+        if not self.open:
+            self._panel = None
+            return
+        ph = len(SPEEDS) * self.ROW_H
+        px = btn_rect.x
+        py = btn_rect.y - ph - 4
+        self._panel = pygame.Rect(px, py, self.PANEL_W, ph)
+        pygame.draw.rect(surface, (18, 18, 28), self._panel, border_radius=8)
+        pygame.draw.rect(surface, (60, 60, 85), self._panel, 1, border_radius=8)
+        mp = pygame.mouse.get_pos()
+        for i, (key, name, desc, _) in enumerate(SPEEDS):
+            rr     = pygame.Rect(px, py + i * self.ROW_H, self.PANEL_W, self.ROW_H)
+            active = (key == self.current)
+            if active:
+                pygame.draw.rect(surface, (45, 140, 90), rr, border_radius=4)
+            elif rr.collidepoint(mp):
+                pygame.draw.rect(surface, (35, 35, 58), rr, border_radius=4)
+            nc = (255, 255, 255) if active else (185, 185, 205)
+            dc = (160, 255, 200) if active else (95,  95,  115)
             surface.blit(self._fn.render(name, True, nc),
                          (px + 10, py + i * self.ROW_H + 5))
             surface.blit(self._fs.render(desc, True, dc),
@@ -400,7 +473,7 @@ def draw_results_overlay(surface, status, player, visited_cells,
         y += row_h
 
     pygame.draw.line(surface, (50, 50, 72), (px + 20, y + 4), (px + panel_w - 20, y + 4), 1)
-    hint = font_sm.render("R  restart          ESC  return to menu", True, (75, 75, 108))
+    hint = font_sm.render("Click to dismiss   R restart   ESC menu", True, (75, 75, 108))
     surface.blit(hint, hint.get_rect(centerx=px + panel_w // 2, y=y + 14))
 
 
@@ -467,7 +540,7 @@ def _camera(player_col, player_row, ts, cols, rows):
 
 
 # ── Game loop ─────────────────────────────────────────────────────────────────
-def run_game(screen, map_path):
+def run_game(screen, map_path, sounds=None):
     grid_master, _ = load_map(map_path)
     cols = len(grid_master[0])
     rows = len(grid_master)
@@ -482,7 +555,8 @@ def run_game(screen, map_path):
     clock = pygame.time.Clock()
 
     sprites    = load_sprites(ts)
-    sounds     = SoundManager()
+    if sounds is None:
+        sounds = SoundManager()
     trail_surf = make_overlay(ts, *TRAIL_COLOR, TRAIL_ALPHA)
     bt_surf    = make_overlay(ts, 255, 120, 60, BT_ALPHA)
     gold_surf  = make_overlay(ts, 255, 215, 40, 110)
@@ -498,8 +572,10 @@ def run_game(screen, map_path):
     dropdown      = AlgoDropdown(algo)
     diff          = "medium"
     diff_dropdown = DiffDropdown(diff)
-    algo_btn_rect = None
-    diff_btn_rect = None
+    speed_dd      = SpeedDropdown("normal")
+    algo_btn_rect  = None
+    diff_btn_rect  = None
+    speed_btn_rect = None
 
     grid, player, gen, goals = build_run(grid_master, ts, algo, diff)
     renderer = MapRenderer(grid, ts, sprites=sprites)
@@ -512,9 +588,10 @@ def run_game(screen, map_path):
     best_score       = None
     backtrack_count  = 0
     paths_explored   = 0
-    status    = "idle"
-    finished  = False
-    last_step = time.time()
+    status       = "idle"
+    finished     = False
+    show_overlay = False
+    last_step    = time.time()
 
     while True:
         now             = time.time()
@@ -524,14 +601,19 @@ def run_game(screen, map_path):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return "quit"
+            if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and finished and show_overlay):
+                show_overlay = False
+                continue
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    if dropdown.open or diff_dropdown.open:
+                    if dropdown.open or diff_dropdown.open or speed_dd.open:
                         dropdown.open      = False
                         diff_dropdown.open = False
+                        speed_dd.open      = False
                     else:
                         return "menu"
-                if event.key == pygame.K_r and not dropdown.open and not diff_dropdown.open:
+                if event.key == pygame.K_r and not dropdown.open and not diff_dropdown.open and not speed_dd.open:
                     grid, player, gen, goals = build_run(grid_master, ts, algo, diff)
                     renderer.update_grid(grid)
                     visited_cells   = {(player.row, player.col)}
@@ -541,9 +623,10 @@ def run_game(screen, map_path):
                     best_score      = None
                     backtrack_count = 0
                     paths_explored  = 0
-                    status    = "idle"
-                    finished  = False
-                    last_step = now
+                    status       = "idle"
+                    finished     = False
+                    show_overlay = False
+                    last_step    = now
             if event.type == pygame.MOUSEWHEEL:
                 new_ts = max(ZOOM_MIN, min(ZOOM_MAX, ts + event.y * ZOOM_STEP))
                 if new_ts != ts:
@@ -557,7 +640,7 @@ def run_game(screen, map_path):
                     gold_surf  = make_overlay(ts, 255, 215, 40, 110)
             if not dropdown.handle_event(event, algo_btn_rect):
                 if not diff_dropdown.handle_event(event, diff_btn_rect):
-                    hud.handle_event(event)
+                    speed_dd.handle_event(event, speed_btn_rect)
 
         if dropdown.pending_algo:
             algo = dropdown.consume()
@@ -570,9 +653,10 @@ def run_game(screen, map_path):
             best_score      = None
             backtrack_count = 0
             paths_explored  = 0
-            status    = "idle"
-            finished  = False
-            last_step = now
+            status       = "idle"
+            finished     = False
+            show_overlay = False
+            last_step    = now
 
         if diff_dropdown.pending_diff:
             diff = diff_dropdown.consume()
@@ -585,16 +669,17 @@ def run_game(screen, map_path):
             best_score      = None
             backtrack_count = 0
             paths_explored  = 0
-            status    = "idle"
-            finished  = False
-            last_step = now
+            status       = "idle"
+            finished     = False
+            show_overlay = False
+            last_step    = now
 
         if player.is_frozen():
             player.tick_freeze()
             time.sleep(0.12)
 
         if not finished and not player.is_frozen():
-            delay = hud.step_delay * (0.5 if status == "backtracking" else 1.0)
+            delay = speed_dd.delay * (0.5 if status == "backtracking" else 1.0)
             if now - last_step >= delay:
                 try:
                     kind, r, c, extra = next(gen)
@@ -659,15 +744,18 @@ def run_game(screen, map_path):
                         if extra.get("score") is not None:
                             best_score = extra["score"]
                         sounds.play("goal")
-                        finished = True
+                        finished     = True
+                        show_overlay = True
                     elif kind == "no_solution":
                         status = "no_solution"
                         player.is_active = False
-                        finished = True
+                        finished     = True
+                        show_overlay = True
                 except StopIteration:
                     if status not in ("found", "no_solution"):
                         status = "no_solution"
-                    finished = True
+                    finished     = True
+                    show_overlay = True
 
         game_screen.fill((0, 0, 0))
 
@@ -700,13 +788,15 @@ def run_game(screen, map_path):
                                  (gx, gy, ts, ts), 1)
 
         game_screen.set_clip(None)
-        algo_btn_rect, diff_btn_rect = hud.draw(
+        algo_btn_rect, diff_btn_rect, speed_btn_rect = hud.draw(
             game_screen, player, status, dropdown.label,
-            score=best_score, diff_label=diff_dropdown.label)
+            score=best_score, diff_label=diff_dropdown.label,
+            speed_label=speed_dd.label)
         dropdown.draw(game_screen, algo_btn_rect)
         diff_dropdown.draw(game_screen, diff_btn_rect)
+        speed_dd.draw(game_screen, speed_btn_rect)
 
-        if finished:
+        if finished and show_overlay:
             draw_results_overlay(game_screen, status, player, visited_cells,
                                  backtrack_count, paths_explored, best_score,
                                  SCREEN_W, SCREEN_H)
@@ -721,6 +811,9 @@ def main():
     screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
     pygame.display.set_caption(WINDOW_TITLE)
 
+    sounds = SoundManager()
+    sounds.play_bgm()
+
     while True:
         # Always restore menu-sized window when returning
         screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
@@ -733,7 +826,7 @@ def main():
             map_path = map_select_screen(screen)
             if map_path is None:
                 continue
-            result = run_game(screen, map_path)
+            result = run_game(screen, map_path, sounds=sounds)
             if result == "quit":
                 break
             # result == "menu" → loop back to start screen
@@ -743,6 +836,7 @@ def main():
                 break
             # result == "back" → loop back to start screen
 
+    sounds.stop_bgm()
     pygame.quit()
     sys.exit()
 

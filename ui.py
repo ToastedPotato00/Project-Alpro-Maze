@@ -5,7 +5,7 @@ Clean, final HUD layout:
   - Key counter with icon glyph
   - Step counter
   - Status panel (right-aligned, color-coded)
-  - Speed slider (left-click drag to adjust algorithm step delay)
+  - Speed / Algo / Diff dropdown trigger buttons
   - Restart / Quit hint text
 """
 
@@ -59,58 +59,22 @@ STATUS_LABELS = {
     "replaying":    "Replaying best...",
 }
 
-# ── Speed slider ──────────────────────────────────────────────────────────────
-SLIDER_W       = 70
-SLIDER_H       = 6
-SLIDER_KNOB_R  = 6
-SLIDER_COL_BG  = (40, 40, 55)
-SLIDER_COL_FG  = (80, 160, 255)
-SLIDER_COL_KNB = (160, 210, 255)
-SPEED_MIN      = 0.01   # seconds (fast)
-SPEED_MAX      = 0.50   # seconds (slow)
 
 
 class HUD:
     def __init__(self, screen_w: int, screen_h: int):
         pygame.font.init()
-        self.font       = pygame.font.SysFont("monospace", FONT_MAIN, bold=True)
-        self.font_sm    = pygame.font.SysFont("monospace", FONT_LABEL)
-        self.screen_w   = screen_w
-        self.screen_h   = screen_h
-        self.hud_y      = screen_h - HUD_HEIGHT
-
-        # Speed slider state (0=fast, 1=slow)
-        self._slider_frac   = 0.2   # default: near fast end
-        self._dragging      = False
-        self._slider_rect   = None  # set on first draw
-
-    # ── Public: query current step delay ─────────────────────────────────────
-    @property
-    def step_delay(self) -> float:
-        return SPEED_MIN + self._slider_frac * (SPEED_MAX - SPEED_MIN)
-
-    # ── Mouse events (call from main loop) ───────────────────────────────────
-    def handle_event(self, event):
-        if self._slider_rect is None:
-            return
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if self._slider_rect.collidepoint(event.pos):
-                self._dragging = True
-                self._update_slider(event.pos[0])
-        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-            self._dragging = False
-        elif event.type == pygame.MOUSEMOTION and self._dragging:
-            self._update_slider(event.pos[0])
-
-    def _update_slider(self, mouse_x: int):
-        rx = self._slider_rect.x
-        rw = self._slider_rect.width
-        self._slider_frac = max(0.0, min(1.0, (mouse_x - rx) / rw))
+        self.font     = pygame.font.SysFont("monospace", FONT_MAIN, bold=True)
+        self.font_sm  = pygame.font.SysFont("monospace", FONT_LABEL)
+        self.screen_w = screen_w
+        self.screen_h = screen_h
+        self.hud_y    = screen_h - HUD_HEIGHT
 
     # ── Draw ─────────────────────────────────────────────────────────────────
     def draw(self, surface: pygame.Surface, player, status: str,
              algo_label: str = "Classic DFS", score=None,
-             diff_label: str = "Medium") -> tuple:
+             diff_label: str = "Medium",
+             speed_label: str = "Normal") -> tuple:
         hud_rect = pygame.Rect(0, self.hud_y, self.screen_w, HUD_HEIGHT)
         pygame.draw.rect(surface, HUD_BG, hud_rect)
         pygame.draw.line(surface, HUD_BORDER,
@@ -143,29 +107,31 @@ class HUD:
         x += s_lbl.get_width() + 5
         surface.blit(s_val, (x, cy - s_val.get_height() // 2))
 
-        # ── Zone 3: Speed slider (fixed anchor x=348) ────────────────────────
+        # ── Zone 3 + 4: Speed / Algo / Diff dropdown trigger buttons ────────────
         self._draw_divider(surface, 346, cy)
-        x = 356
-        sp_lbl = self.font_sm.render("SPEED", True, LABEL_COLOR)
-        surface.blit(sp_lbl, (x, cy - sp_lbl.get_height() // 2))
-        x += sp_lbl.get_width() + 6
-        x = self._draw_slider(surface, x, cy)
-
-        # ── Zone 4: ALGO + DIFF dropdown trigger buttons ─────────────────────
-        self._draw_divider(surface, x + 4, cy)
-        btn_x  = x + 14
-        abtn_w = 185
-        dbtn_w = 130
-        abtn_h = HUD_HEIGHT - 16
+        btn_x   = 360
+        sbtn_w  = 100
+        abtn_w  = 185
+        dbtn_w  = 130
+        btn_h   = HUD_HEIGHT - 16
         btn_gap = 6
 
-        algo_btn = pygame.Rect(btn_x, self.hud_y + 8, abtn_w, abtn_h)
+        speed_btn = pygame.Rect(btn_x, self.hud_y + 8, sbtn_w, btn_h)
+        pygame.draw.rect(surface, (40, 40, 62), speed_btn, border_radius=6)
+        pygame.draw.rect(surface, (65, 65, 92), speed_btn, 1, border_radius=6)
+        sp_surf = self.font_sm.render(f"{speed_label}  ▼", True, (160, 230, 180))
+        surface.blit(sp_surf, sp_surf.get_rect(center=speed_btn.center))
+
+        self._draw_divider(surface, btn_x + sbtn_w + btn_gap, cy)
+        ax = btn_x + sbtn_w + btn_gap * 2 + 6
+
+        algo_btn = pygame.Rect(ax, self.hud_y + 8, abtn_w, btn_h)
         pygame.draw.rect(surface, (40, 40, 62), algo_btn, border_radius=6)
         pygame.draw.rect(surface, (65, 65, 92), algo_btn, 1, border_radius=6)
         al_surf  = self.font_sm.render(f"{algo_label}  ▼", True, (160, 195, 240))
         surface.blit(al_surf, al_surf.get_rect(center=algo_btn.center))
 
-        diff_btn = pygame.Rect(btn_x + abtn_w + btn_gap, self.hud_y + 8, dbtn_w, abtn_h)
+        diff_btn = pygame.Rect(ax + abtn_w + btn_gap, self.hud_y + 8, dbtn_w, btn_h)
         pygame.draw.rect(surface, (40, 40, 62), diff_btn, border_radius=6)
         pygame.draw.rect(surface, (65, 65, 92), diff_btn, 1, border_radius=6)
         df_surf  = self.font_sm.render(f"{diff_label}  ▼", True, (200, 160, 240))
@@ -193,7 +159,7 @@ class HUD:
             surface.blit(l, (self.screen_w - l.get_width() - PADDING, y))
             y += l.get_height() + line_gap
 
-        return algo_btn, diff_btn
+        return algo_btn, diff_btn, speed_btn
 
     # ── Internal draw helpers ─────────────────────────────────────────────────
 
@@ -233,31 +199,3 @@ class HUD:
 
         return x + HP_BAR_W + 5
 
-    def _draw_slider(self, surface, x, cy):
-        sw = SLIDER_W
-        sh = SLIDER_H
-        sy = cy - sh // 2
-
-        track_rect = pygame.Rect(x, sy, sw, sh)
-        self._slider_rect = pygame.Rect(x, cy - SLIDER_KNOB_R,
-                                        sw, SLIDER_KNOB_R * 2)
-
-        # Track background
-        pygame.draw.rect(surface, SLIDER_COL_BG, track_rect, border_radius=3)
-
-        # Filled portion (left = fast = small frac)
-        filled = int(sw * self._slider_frac)
-        if filled > 0:
-            pygame.draw.rect(surface, SLIDER_COL_FG,
-                             (x, sy, filled, sh), border_radius=3)
-
-        # Knob
-        kx = x + filled
-        pygame.draw.circle(surface, SLIDER_COL_KNB, (kx, cy), SLIDER_KNOB_R)
-        pygame.draw.circle(surface, (60, 100, 160), (kx, cy), SLIDER_KNOB_R, 1)
-
-        # Endpoint tick marks instead of text labels
-        pygame.draw.line(surface, LABEL_COLOR, (x, cy - 4), (x, cy + 4), 1)
-        pygame.draw.line(surface, LABEL_COLOR, (x + sw, cy - 4), (x + sw, cy + 4), 1)
-
-        return x + sw + 6
