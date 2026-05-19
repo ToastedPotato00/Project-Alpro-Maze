@@ -117,7 +117,8 @@ def _replay(grid, player, start, step_seq, tmap, score=None, start_hp=100, diff=
     yield ("replay_start", start[0], start[1], payload)
 
     for nr, nc in step_seq:
-        if grid[nr][nc] == "%" and player.keys > 0:
+        wall_broken_in_replay = grid[nr][nc] == "%" and player.keys > 0
+        if wall_broken_in_replay:
             player.keys  -= 1
             grid[nr][nc]  = "."
 
@@ -125,6 +126,8 @@ def _replay(grid, player, start, step_seq, tmap, score=None, start_hp=100, diff=
         sym   = grid[player.row][player.col]
         extra = apply_tile_effect(sym, player, grid, tmap, diff)
         player.steps += extra["step_cost"]
+        if wall_broken_in_replay:
+            extra["wall_broken"] = True
 
         yield ("replay", player.row, player.col, extra)
 
@@ -163,6 +166,8 @@ def _dfs(grid, player, pos, goal, visited, path, step_seq, tmap, found_flag, dif
 
         current_sym = grid[player.row][player.col]
         extra = apply_tile_effect(current_sym, player, grid, tmap, diff)
+        if wall_broken_at:
+            extra["wall_broken"] = True
 
         if extra.get("key_picked_up"):
             key_restored_at = (player.row, player.col)
@@ -264,6 +269,8 @@ def _dfs_all(grid, player, pos, goal, visited, path, step_seq, tmap, best, diff=
 
         sym   = grid[player.row][player.col]
         extra = apply_tile_effect(sym, player, grid, tmap, diff)
+        if wall_broken_at:
+            extra["wall_broken"] = True
 
         if extra.get("key_picked_up"):
             key_restored_at = (player.row, player.col)
@@ -349,6 +356,8 @@ def _dfs_segment(grid, player, pos, goal, visited, path, step_seq, tmap, found_f
 
         current_sym = grid[player.row][player.col]
         extra = apply_tile_effect(current_sym, player, grid, tmap, diff)
+        if wall_broken_at:
+            extra["wall_broken"] = True
 
         if extra.get("key_picked_up"):
             key_restored_at = (player.row, player.col)

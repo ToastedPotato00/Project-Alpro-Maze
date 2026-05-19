@@ -16,6 +16,7 @@ from ui            import HUD, HUD_HEIGHT
 from map_editor    import run_editor
 from sprite_loader import load_sprites
 from tiles         import DIFF_CONFIGS
+from sound_manager import SoundManager
 
 WINDOW_TITLE = "MazeCrawler"
 SCREEN_W     = 1440
@@ -340,7 +341,80 @@ def map_select_screen(screen):
         clock.tick(FPS)
 
 
+# ── Results overlay ───────────────────────────────────────────────────────────
+def draw_results_overlay(surface, status, player, visited_cells,
+                         backtrack_count, paths_explored, best_score,
+                         screen_w, screen_h):
+    font_lg = pygame.font.SysFont("monospace", 28, bold=True)
+    font_md = pygame.font.SysFont("monospace", 16, bold=True)
+    font_sm = pygame.font.SysFont("monospace", 13)
+
+    backdrop = pygame.Surface((screen_w, screen_h), pygame.SRCALPHA)
+    backdrop.fill((0, 0, 0, 170))
+    surface.blit(backdrop, (0, 0))
+
+    stats = [
+        ("Steps Taken",   str(player.steps),          (120, 190, 255)),
+        ("HP Remaining",  str(max(0, player.hp)),      ( 60, 210,  80)),
+        ("Keys Held",     str(player.keys),            (240, 200,  40)),
+        ("Cells Visited", str(len(visited_cells)),     (160, 160, 200)),
+        ("Backtracks",    str(backtrack_count),        (220, 150,  50)),
+    ]
+    if paths_explored > 0:
+        stats.append(("Paths Explored", str(paths_explored), (255, 160, 40)))
+    if best_score is not None:
+        stats.append(("Best Score",     str(best_score),      (255, 215, 40)))
+
+    row_h   = 36
+    panel_w = 420
+    panel_h = 72 + len(stats) * row_h + 52  # title block + rows + divider+hint
+
+    px = (screen_w - panel_w) // 2
+    py = (screen_h - panel_h) // 2
+
+    if status == "found":
+        border_col = (255, 215,  40)
+        title_text = "Goal Reached!"
+        title_col  = (255, 215,  40)
+    else:
+        border_col = (210,  55,  55)
+        title_text = "No Solution Found"
+        title_col  = (210,  55,  55)
+
+    pygame.draw.rect(surface, (18, 18, 30), (px, py, panel_w, panel_h), border_radius=14)
+    pygame.draw.rect(surface, border_col,   (px, py, panel_w, panel_h), 2, border_radius=14)
+
+    t_surf = font_lg.render(title_text, True, title_col)
+    surface.blit(t_surf, t_surf.get_rect(centerx=px + panel_w // 2, y=py + 18))
+
+    sep_y = py + 60
+    pygame.draw.line(surface, (50, 50, 72), (px + 20, sep_y), (px + panel_w - 20, sep_y), 1)
+
+    y = sep_y + 10
+    for label, value, color in stats:
+        lbl_s = font_sm.render(label, True, (115, 115, 140))
+        val_s = font_md.render(value, True, color)
+        surface.blit(lbl_s, (px + 28,  y + (row_h - lbl_s.get_height()) // 2))
+        surface.blit(val_s, (px + panel_w - 28 - val_s.get_width(),
+                             y + (row_h - val_s.get_height()) // 2))
+        y += row_h
+
+    pygame.draw.line(surface, (50, 50, 72), (px + 20, y + 4), (px + panel_w - 20, y + 4), 1)
+    hint = font_sm.render("R  restart          ESC  return to menu", True, (75, 75, 108))
+    surface.blit(hint, hint.get_rect(centerx=px + panel_w // 2, y=y + 14))
+
+
 # ── Game helpers ──────────────────────────────────────────────────────────────
+def _play_tile_sound(sounds, extra):
+    if extra.get("key_picked_up"):   sounds.play("key_pickup")
+    elif extra.get("teleported_to"): sounds.play("teleport")
+    elif extra.get("freeze_frames"): sounds.play("mud")
+    elif extra.get("fire_damage"):   sounds.play("fire")
+    elif extra.get("regen_heal"):    sounds.play("regen")
+    elif extra.get("wall_broken"):   sounds.play("wall_break")
+    else:                            sounds.play("step")
+
+
 def make_overlay(tile_size, r, g, b, a):
     s = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
     s.fill((r, g, b, a))
@@ -408,6 +482,7 @@ def run_game(screen, map_path):
     clock = pygame.time.Clock()
 
     sprites    = load_sprites(ts)
+    sounds     = SoundManager()
     trail_surf = make_overlay(ts, *TRAIL_COLOR, TRAIL_ALPHA)
     bt_surf    = make_overlay(ts, 255, 120, 60, BT_ALPHA)
     gold_surf  = make_overlay(ts, 255, 215, 40, 110)
@@ -435,6 +510,8 @@ def run_game(screen, map_path):
     solution_path    = [(player.row, player.col)]
     active_goal_idx  = 0
     best_score       = None
+    backtrack_count  = 0
+    paths_explored   = 0
     status    = "idle"
     finished  = False
     last_step = time.time()
@@ -462,6 +539,8 @@ def run_game(screen, map_path):
                     solution_path   = [(player.row, player.col)]
                     active_goal_idx = 0
                     best_score      = None
+                    backtrack_count = 0
+                    paths_explored  = 0
                     status    = "idle"
                     finished  = False
                     last_step = now
@@ -489,6 +568,8 @@ def run_game(screen, map_path):
             solution_path   = [(player.row, player.col)]
             active_goal_idx = 0
             best_score      = None
+            backtrack_count = 0
+            paths_explored  = 0
             status    = "idle"
             finished  = False
             last_step = now
@@ -502,6 +583,8 @@ def run_game(screen, map_path):
             solution_path   = [(player.row, player.col)]
             active_goal_idx = 0
             best_score      = None
+            backtrack_count = 0
+            paths_explored  = 0
             status    = "idle"
             finished  = False
             last_step = now
@@ -526,6 +609,7 @@ def run_game(screen, map_path):
                         renderer.update_grid(grid)
                         if extra.get("freeze_frames", 0) > 0:
                             player.freeze_frames_left = extra["freeze_frames"]
+                        _play_tile_sound(sounds, extra)
                     elif kind == "backtrack":
                         status = "backtracking"
                         player.is_active    = True
@@ -533,6 +617,7 @@ def run_game(screen, map_path):
                         backtrack_cells.add((r, c))
                         if len(solution_path) > 1:
                             solution_path.pop()
+                        backtrack_count += 1
                         renderer.update_grid(grid)
                     elif kind == "segment_found":
                         active_goal_idx += 1
@@ -541,8 +626,10 @@ def run_game(screen, map_path):
                         player.is_backtrack = False
                         visited_cells.add((r, c))
                         backtrack_cells.discard((r, c))
+                        sounds.play("goal")
                     elif kind == "candidate":
                         status = "candidate"
+                        paths_explored += 1
                         if extra.get("is_best"):
                             best_score = extra["score"]
                     elif kind == "replay_start":
@@ -564,12 +651,14 @@ def run_game(screen, map_path):
                         renderer.update_grid(grid)
                         if extra.get("freeze_frames", 0) > 0:
                             player.freeze_frames_left = extra["freeze_frames"]
+                        _play_tile_sound(sounds, extra)
                     elif kind == "found":
                         status = "found"
                         player.is_active    = False
                         player.is_backtrack = False
                         if extra.get("score") is not None:
                             best_score = extra["score"]
+                        sounds.play("goal")
                         finished = True
                     elif kind == "no_solution":
                         status = "no_solution"
@@ -616,6 +705,12 @@ def run_game(screen, map_path):
             score=best_score, diff_label=diff_dropdown.label)
         dropdown.draw(game_screen, algo_btn_rect)
         diff_dropdown.draw(game_screen, diff_btn_rect)
+
+        if finished:
+            draw_results_overlay(game_screen, status, player, visited_cells,
+                                 backtrack_count, paths_explored, best_score,
+                                 SCREEN_W, SCREEN_H)
+
         pygame.display.flip()
         clock.tick(FPS)
 

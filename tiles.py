@@ -80,11 +80,15 @@ def apply_tile_effect(symbol: str, player, grid, teleporter_map: dict, diff=None
         "key_picked_up": False,
         "wall_broken":   False,
         "step_cost":     step_cost,
+        "fire_damage":   False,
+        "regen_heal":    False,
     }
     if symbol == "F":
         player.hp -= diff["fire"] if diff else FIRE_DAMAGE
+        result["fire_damage"] = True
     elif symbol == "R":
         player.hp = min(REGEN_CAP, player.hp + REGEN_HEAL)
+        result["regen_heal"] = True
     elif symbol == "M":
         result["freeze_frames"] = diff["mud_freeze"] if diff else MUD_FREEZE_FRAMES
     elif symbol in ("T", "t"):
