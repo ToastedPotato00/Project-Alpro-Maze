@@ -1,14 +1,3 @@
-"""
-ui.py — Phase 6
-Clean, final HUD layout:
-  - HP bar (pixel art style, color-shifts green→yellow→red)
-  - Key counter with icon glyph
-  - Step counter
-  - Status panel (right-aligned, color-coded)
-  - Speed / Algo / Diff dropdown trigger buttons
-  - Restart / Quit hint text
-"""
-
 import pygame
 
 # ── Layout ────────────────────────────────────────────────────────────────────

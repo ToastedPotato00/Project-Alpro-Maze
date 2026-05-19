@@ -77,7 +77,14 @@ def dfs_optimize(grid, player, start, goal, diff=None):
     step_seq = []
     player.set_position(*start)
 
-    best = {"score": None, "step_seq": None, "min_steps": None}
+    manhattan      = abs(goal[0] - start[0]) + abs(goal[1] - start[1])
+    total_keys     = sum(row.count("K") for row in grid)
+    max_hp         = diff["start_hp"] if diff else 100
+
+    weights = diff["score_weights"] if diff else (5, 3, 2)
+    best = {"score": None, "step_seq": None,
+            "manhattan": manhattan, "total_keys": total_keys,
+            "max_hp": max_hp, "weights": weights}
 
     yield from _dfs_all(grid, player, start, goal, visited, path, step_seq,
                         teleporter_map, best, diff)
@@ -229,13 +236,17 @@ def _dfs(grid, player, pos, goal, visited, path, step_seq, tmap, found_flag, dif
 def _dfs_all(grid, player, pos, goal, visited, path, step_seq, tmap, best, diff=None):
     """Exhaustive DFS for Map 3. Never exits early on goal — always backtracks."""
     if pos == goal:
-        keys_spent = sum(1 for e in path if e[5] is not None)
-        # Track shortest path seen so far to anchor step efficiency
-        if best["min_steps"] is None or player.steps < best["min_steps"]:
-            best["min_steps"] = player.steps
-        step_penalty = player.steps - best["min_steps"]  # 0 on shortest path, grows for longer
-        score        = player.hp - step_penalty - keys_spent * 10
-        is_best      = best["score"] is None or score > best["score"]
+        keys_spent  = sum(1 for e in path if e[5] is not None)
+        hp_ratio    = player.hp / best["max_hp"]
+        step_ratio  = best["manhattan"] / player.steps if player.steps > 0 else 1.0
+        step_ratio  = min(step_ratio, 1.0)          # cap at 1 (can't beat manhattan)
+        if best["total_keys"] > 0:
+            key_ratio = 1.0 - keys_spent / best["total_keys"]
+        else:
+            key_ratio = 1.0
+        w_hp, w_step, w_key = best["weights"]
+        score   = round((w_hp * hp_ratio + w_step * step_ratio + w_key * key_ratio) * 10, 1)
+        is_best = best["score"] is None or score > best["score"]
         if is_best:
             best["score"]    = score
             best["step_seq"] = list(step_seq)

@@ -37,10 +37,10 @@ REGEN_HEAL   = 15
 REGEN_CAP    = 100
 
 DIFF_CONFIGS = {
-    "easy":     {"fire": 12, "mud_freeze": 1, "mud_step": 1, "start_hp": 100},
-    "medium":   {"fire": 25, "mud_freeze": 2, "mud_step": 3, "start_hp": 100},
-    "hard":     {"fire": 37, "mud_freeze": 3, "mud_step": 4, "start_hp": 100},
-    "hardcore": {"fire": 50, "mud_freeze": 4, "mud_step": 6, "start_hp":   1},
+    "easy":     {"fire": 12, "mud_freeze": 1, "mud_step": 1, "start_hp": 100, "score_weights": (2, 5, 3)},
+    "medium":   {"fire": 25, "mud_freeze": 2, "mud_step": 3, "start_hp": 100, "score_weights": (5, 3, 2)},
+    "hard":     {"fire": 37, "mud_freeze": 3, "mud_step": 4, "start_hp": 100, "score_weights": (7, 2, 1)},
+    "hardcore": {"fire": 50, "mud_freeze": 4, "mud_step": 6, "start_hp":   1, "score_weights": (0, 7, 3)},
 }
 
 
