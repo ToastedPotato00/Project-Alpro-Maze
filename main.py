@@ -24,7 +24,7 @@ SCREEN_W     = 1440
 SCREEN_H     = 700
 FPS          = 60
 
-MENU_BG_MAP  = "maps/map1.txt"   # swap filename to change start screen background
+MENU_BG_MAP  = "maps/Bg.txt"   # swap filename to change start screen background
 
 TRAIL_COLOR  = (80,  160, 255)
 TRAIL_ALPHA  = 55
@@ -453,7 +453,7 @@ def start_screen(screen):
 
         # ── Spring title animation (slow ease-out pop) ───────────────────────
         if t_scale < 0.999:
-            t_vel   = t_vel * 0.7 + (1.0 - t_scale) * 0.01
+            t_vel   = t_vel * 0.2 + (1.0 - t_scale) * 0.045
             t_scale = min(1.0, t_scale + t_vel)
         if t_scale >= 0.999 and not title_settled:
             t_scale        = 1.0

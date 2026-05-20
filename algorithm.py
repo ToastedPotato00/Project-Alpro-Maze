@@ -7,6 +7,7 @@ from tiles import is_passable, get_step_cost, apply_tile_effect, build_teleporte
 DIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
 
+
 def dfs_backtrack(grid, player, start, goal, diff=None):
     teleporter_map = build_teleporter_map(grid)
     visited    = set()
