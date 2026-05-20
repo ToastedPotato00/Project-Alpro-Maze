@@ -2,6 +2,7 @@
 main.py — with start screen and Map Editor button
 """
 
+import math
 import os
 import pygame
 import sys
@@ -23,6 +24,8 @@ SCREEN_W     = 1440
 SCREEN_H     = 700
 FPS          = 60
 
+MENU_BG_MAP  = "maps/map1.txt"   # swap filename to change start screen background
+
 TRAIL_COLOR  = (80,  160, 255)
 TRAIL_ALPHA  = 55
 BT_ALPHA     = 30
@@ -41,23 +44,26 @@ BORDER     = (50,  50,  70)
 # ── Simple button (local, avoids circular import) ─────────────────────────────
 class Btn:
     def __init__(self, rect, label, font,
-                 color=BTN_BG, hover=BTN_HOV, tc=TEXT):
-        self.rect  = pygame.Rect(rect)
-        self.label = label
-        self.font  = font
-        self.color = color
-        self.hover = hover
-        self.tc    = tc
-        self._hov  = False
+                 color=BTN_BG, hover=BTN_HOV, tc=TEXT, border_color=None, pop=False):
+        self.rect         = pygame.Rect(rect)
+        self.label        = label
+        self.font         = font
+        self.color        = color
+        self.hover        = hover
+        self.tc           = tc
+        self.border_color = border_color if border_color is not None else BORDER
+        self.pop          = pop
+        self._hov         = False
 
     def update(self, mp): self._hov = self.rect.collidepoint(mp)
 
     def draw(self, s):
+        draw_rect = self.rect.inflate(12, 8) if (self._hov and self.pop) else self.rect
         pygame.draw.rect(s, self.hover if self._hov else self.color,
-                         self.rect, border_radius=8)
-        pygame.draw.rect(s, BORDER, self.rect, 1, border_radius=8)
+                         draw_rect, border_radius=8)
+        pygame.draw.rect(s, self.border_color, draw_rect, 1, border_radius=8)
         lbl = self.font.render(self.label, True, self.tc)
-        s.blit(lbl, lbl.get_rect(center=self.rect.center))
+        s.blit(lbl, lbl.get_rect(center=draw_rect.center))
 
     def clicked(self, e):
         return (e.type == pygame.MOUSEBUTTONDOWN and e.button == 1
@@ -302,20 +308,115 @@ class SpeedDropdown:
 # ── Start / map-select screen ─────────────────────────────────────────────────
 def start_screen(screen):
     pygame.font.init()
-    font_lg = pygame.font.SysFont("monospace", 48, bold=True)
-    font_md = pygame.font.SysFont("monospace", 22, bold=True)
-    font_sm = pygame.font.SysFont("monospace", 16)
+    font_lg = pygame.font.Font("assets/font.ttf", 64)
+    font_md = pygame.font.Font("assets/font.ttf", 22)
     clock   = pygame.time.Clock()
-    cx      = SCREEN_W // 2
 
-    btn_play   = Btn((cx-140, 302, 280, 58), "▶  Play",
-                     font_md, color=BTN_ACT, hover=ACCENT_HOV, tc=(255,255,255))
-    btn_editor = Btn((cx-140, 376, 280, 58), "✏  Map Editor", font_md)
-    btn_quit   = Btn((cx-140, 450, 280, 58), "✕  Quit", font_md)
+    # ── Compute window size from map (fit by height, width follows) ──────────
+    try:
+        grid_master_bg, _ = load_map(MENU_BG_MAP)
+        _bg_ok = True
+    except Exception:
+        grid_master_bg = None
+        _bg_ok = False
+
+    if _bg_ok:
+        _bg_cols = len(grid_master_bg[0])
+        _bg_rows = len(grid_master_bg)
+        ts_bg    = max(ZOOM_MIN, min(ZOOM_MAX, SCREEN_H // _bg_rows))
+        menu_w   = _bg_cols * ts_bg
+        menu_h   = SCREEN_H
+    else:
+        ts_bg  = None
+        menu_w = SCREEN_W
+        menu_h = SCREEN_H
+
+    screen = pygame.display.set_mode((menu_w, menu_h))
+    cx     = menu_w // 2
+
+    BG_STEP_DELAY = 0.10
+    _bg = {}
+
+    def reset_bg():
+        if not _bg_ok:
+            return
+        grid   = copy.deepcopy(grid_master_bg)
+        starts = find_tile(grid, "S")
+        goals  = find_tile(grid, "G")
+        sp = starts[0] if starts else (1, 1)
+        gp = goals[0]  if goals  else (_bg_rows - 2, _bg_cols - 2)
+        player   = Player(sp[0], sp[1], ts_bg)
+        sprites  = load_sprites(ts_bg)
+        renderer = MapRenderer(grid, ts_bg, sprites=sprites)
+        gen      = dfs_backtrack(grid, player, sp, gp)
+        world_h  = _bg_rows * ts_bg
+        cam_y    = -(menu_h - world_h) // 2 if world_h <= menu_h else 0
+        _bg.update(
+            grid=grid, player=player, sprites=sprites,
+            renderer=renderer, gen=gen,
+            offset=(0, -cam_y), last_step=time.time(),
+        )
+
+    reset_bg()
+
+    overlay = pygame.Surface((menu_w, menu_h), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 145))
+
+    # ── Title — per-character for wave animation ─────────────────────────────
+    TITLE_TEXT  = "MazeCrawler"
+    TITLE_COLOR = (235, 210, 140)
+    char_surfs  = [font_lg.render(ch, True, TITLE_COLOR) for ch in TITLE_TEXT]
+    char_widths = [s.get_width() for s in char_surfs]
+    char_h      = char_surfs[0].get_height()
+    t_scale     = 0.0
+    t_vel       = 0.0
+
+    # Burst constants
+    BURST_CYCLE   = 2.5   # seconds per full cycle (motion + rest)
+    BURST_FRAC    = 0.15  # fraction of cycle that is active (≈0.375s of motion)
+    BURST_STAGGER = 0.04  # cycle-fraction offset between adjacent letters
+    BURST_AMP     = 9     # pixels of upward travel
+
+    # ── Button layout ────────────────────────────────────────────────────────
+    BTN_W, BTN_H, BTN_GAP = 280, 58, 14
+    TITLE_TO_BTNS          = 32
+    total_btns_h           = 3 * BTN_H + 2 * BTN_GAP
+    block_h                = char_h + TITLE_TO_BTNS + total_btns_h
+    block_top              = (menu_h - block_h) // 2
+    title_cy               = block_top + char_h // 2
+    btns_top               = block_top + char_h + TITLE_TO_BTNS
+
+    # Dungeon Gold palette — local to start screen only
+    DG_TEXT     = (235, 210, 140)
+    DG_BTN_BG   = (38,  28,  18)
+    DG_BTN_HOV  = (62,  46,  26)
+    DG_PLAY_BG  = (130, 90,  22)
+    DG_PLAY_HOV = (168, 120, 38)
+    DG_BORDER   = (120, 85,  25)
+
+    BTN_DEFS = ["Play", "Map Editor", "Quit"]
+    btn_offsets = [-float(menu_h)] * 3
+    btn_started = [False] * 3
+    btn_done    = [False] * 3
+    BTN_STAGGER = 0.75   # seconds between each button starting to drop in
+
+    btns = [
+        Btn((cx - BTN_W // 2, 0, BTN_W, BTN_H), lbl, font_md,
+            color=DG_BTN_BG, hover=DG_PLAY_HOV, tc=DG_TEXT,
+            border_color=DG_BORDER, pop=True)
+        for lbl in BTN_DEFS
+    ]
+
+    title_settled  = False
+    title_settle_t = None
 
     while True:
-        mp = pygame.mouse.get_pos()
-        for b in (btn_play, btn_editor, btn_quit):
+        now = time.time()
+        mp  = pygame.mouse.get_pos()
+
+        for i, b in enumerate(btns):
+            b.rect.y = btns_top + i * (BTN_H + BTN_GAP) + int(btn_offsets[i])
+        for b in btns:
             b.update(mp)
 
         for event in pygame.event.get():
@@ -323,16 +424,81 @@ def start_screen(screen):
                 return "quit"
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 return "quit"
-            if btn_play.clicked(event):   return "play"
-            if btn_editor.clicked(event): return "editor"
-            if btn_quit.clicked(event):   return "quit"
+            if btns[0].clicked(event): return "play"
+            if btns[1].clicked(event): return "editor"
+            if btns[2].clicked(event): return "quit"
 
+        # ── Advance background bot ───────────────────────────────────────────
+        if _bg_ok and _bg and now - _bg["last_step"] >= BG_STEP_DELAY:
+            try:
+                kind, r, c, extra = next(_bg["gen"])
+                _bg["last_step"] = now
+                p = _bg["player"]
+                if kind == "move":
+                    p.is_active    = True
+                    p.is_backtrack = False
+                    _bg["renderer"].update_grid(_bg["grid"])
+                elif kind == "backtrack":
+                    p.is_active    = True
+                    p.is_backtrack = True
+                    _bg["renderer"].update_grid(_bg["grid"])
+                elif kind in ("replay_start", "replay"):
+                    p.is_active    = True
+                    p.is_backtrack = False
+                    _bg["renderer"].update_grid(_bg["grid"])
+                elif kind in ("found", "no_solution"):
+                    reset_bg()
+            except StopIteration:
+                reset_bg()
+
+        # ── Spring title animation (slow ease-out pop) ───────────────────────
+        if t_scale < 0.999:
+            t_vel   = t_vel * 0.7 + (1.0 - t_scale) * 0.01
+            t_scale = min(1.0, t_scale + t_vel)
+        if t_scale >= 0.999 and not title_settled:
+            t_scale        = 1.0
+            title_settled  = True
+            title_settle_t = now
+
+        # ── Button sequential drop-in ────────────────────────────────────────
+        if title_settled:
+            for i in range(3):
+                if now - title_settle_t >= i * BTN_STAGGER:
+                    btn_started[i] = True
+                if btn_started[i] and not btn_done[i]:
+                    btn_offsets[i] *= 0.86   # slow ease-out toward 0
+                    if abs(btn_offsets[i]) < 1.0:
+                        btn_offsets[i] = 0.0
+                        btn_done[i]    = True
+
+        # ── Draw ─────────────────────────────────────────────────────────────
         screen.fill(BG)
-        title = font_lg.render("MazeCrawler", True, TEXT)
-        screen.blit(title, title.get_rect(centerx=cx, y=192))
 
-        for b in (btn_play, btn_editor, btn_quit):
-            b.draw(screen)
+        if _bg_ok and _bg:
+            _bg["renderer"].draw(screen, pygame.time.get_ticks(),
+                                 offset=_bg["offset"])
+            _bg["player"].draw(screen, _bg["sprites"], offset=_bg["offset"])
+
+        screen.blit(overlay, (0, 0))
+
+        if t_scale > 0.01:
+            scaled_ws = [max(1, int(w * t_scale)) for w in char_widths]
+            scaled_h  = max(1, int(char_h * t_scale))
+            total_w   = sum(scaled_ws)
+            x         = cx - total_w // 2
+            for i, (surf, sw) in enumerate(zip(char_surfs, scaled_ws)):
+                s = pygame.transform.smoothscale(surf, (sw, scaled_h)) if t_scale < 1.0 else surf
+                if title_settled:
+                    t_norm = (now / BURST_CYCLE - i * BURST_STAGGER) % 1.0
+                    y_wave = -int(math.sin(t_norm / BURST_FRAC * math.pi) * BURST_AMP) if t_norm < BURST_FRAC else 0
+                else:
+                    y_wave = 0
+                screen.blit(s, (x, title_cy - scaled_h // 2 + y_wave))
+                x += sw
+
+        for i, b in enumerate(btns):
+            if btn_started[i]:
+                b.draw(screen)
 
         pygame.display.flip()
         clock.tick(FPS)
@@ -819,6 +985,7 @@ def main():
         screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
 
         action = start_screen(screen)
+        screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))  # restore after menu resize
 
         if action == "quit":
             break
