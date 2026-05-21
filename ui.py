@@ -61,7 +61,7 @@ class HUD:
 
     # ── Draw ─────────────────────────────────────────────────────────────────
     def draw(self, surface: pygame.Surface, player, status: str,
-             algo_label: str = "Classic DFS", score=None,
+             algo_label: str = "Classic Backtracking", score=None,
              diff_label: str = "Medium",
              speed_label: str = "Normal") -> tuple:
         hud_rect = pygame.Rect(0, self.hud_y, self.screen_w, HUD_HEIGHT)

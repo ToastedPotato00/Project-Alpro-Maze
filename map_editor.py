@@ -30,27 +30,40 @@ PALETTE = [
     ("G", "Goal",         (240,200,  40)),
 ]
 
-MAPS_DIR   = "maps"
-MAPS_EXT   = "*.txt"
+MAPS_DIR    = "maps"
+MAPS_EXT    = "*.txt"
 
-# ── Colours ──────────────────────────────────────────────────────────────────
-BG         = (18,  18,  24)
-PANEL_BG   = (25,  25,  35)
-BORDER     = (50,  50,  70)
-TEXT       = (200, 200, 210)
-TEXT_DIM   = (100, 100, 120)
-ACCENT     = (80,  160, 255)
-ACCENT_HOV = (110, 185, 255)
-BTN_BG     = (35,  35,  50)
-BTN_HOV    = (50,  50,  75)
-BTN_ACT    = (60,  120, 200)
+# ── Background images (one per screen, falls back to solid colour if missing) ─
+MAP_LIST_BG = "assets/bg2.jpg"    # map editor list screen
+NEW_MAP_BG  = "assets/bg_newmap.png"    # new map dialog screen
+
+
+def _load_bg(path, w, h):
+    """Load and scale a PNG background; returns None silently if missing."""
+    try:
+        raw = pygame.image.load(path).convert()
+        return pygame.transform.smoothscale(raw, (w, h))
+    except Exception:
+        return None
+
+# ── Colours (Dungeon Gold theme) ─────────────────────────────────────────────
+BG         = (20,  15,  10)
+PANEL_BG   = (28,  20,  12)
+BORDER     = (120,  85,  25)
+TEXT       = (235, 210, 140)
+TEXT_DIM   = (130, 100,  55)
+ACCENT     = (168, 120,  38)
+ACCENT_HOV = (200, 150,  55)
+BTN_BG     = (38,  28,  18)
+BTN_HOV    = (62,  46,  26)
+BTN_ACT    = (130,  90,  22)
 RED_BTN    = (160,  40,  40)
 RED_HOV    = (200,  60,  60)
-INPUT_BG   = (30,  30,  45)
-INPUT_ACT  = (40,  40,  65)
-INPUT_BDR  = (80,  80, 110)
+INPUT_BG   = (30,  22,  12)
+INPUT_ACT  = (44,  32,  16)
+INPUT_BDR  = (90,  65,  25)
 SEL_BORDER = (255, 215,  40)
-GRID_LINE  = (45,  45,  60)
+GRID_LINE  = (50,  38,  20)
 
 FPS = 60
 
@@ -131,6 +144,7 @@ class MapListScreen:
         self.surface = surface
         self.fonts   = fonts
         self.W, self.H = surface.get_size()
+        self._bg_img = _load_bg(MAP_LIST_BG, self.W, self.H)
         self._build()
 
     def _build(self):
@@ -139,7 +153,7 @@ class MapListScreen:
 
         self.btn_new = Button(
             (cx - 140, self.H - 90, 280, 52),
-            "＋  New Map",
+            "Add New Map",
             color=BTN_ACT, hover_color=ACCENT_HOV,
             text_color=(255,255,255), font=f["md"]
         )
@@ -189,15 +203,14 @@ class MapListScreen:
 
     def _draw(self):
         s = self.surface
-        s.fill(BG)
+        if self._bg_img:
+            s.blit(self._bg_img, (0, 0))
+        else:
+            s.fill(BG)
 
         # Title
         title = self.fonts["lg"].render("Map Editor", True, TEXT)
         s.blit(title, title.get_rect(centerx=self.W // 2, y=60))
-
-        sub = self.fonts["sm"].render("Select a map to edit, or create a new one.",
-                                      True, TEXT_DIM)
-        s.blit(sub, sub.get_rect(centerx=self.W // 2, y=112))
 
         # Map list
         if not self.map_btns:
@@ -221,6 +234,7 @@ class NewMapScreen:
         self.fonts   = fonts
         self.W, self.H = surface.get_size()
         self.error   = ""
+        self._bg_img = _load_bg(NEW_MAP_BG, self.W, self.H)
         self._build()
 
     def _build(self):
@@ -306,7 +320,10 @@ class NewMapScreen:
     def _draw(self):
         s  = self.surface
         cx = self.W // 2
-        s.fill(BG)
+        if self._bg_img:
+            s.blit(self._bg_img, (0, 0))
+        else:
+            s.fill(BG)
 
         title = self.fonts["lg"].render("New Map", True, TEXT)
         s.blit(title, title.get_rect(centerx=cx, y=160))
@@ -678,10 +695,10 @@ def run_editor(surface):
     """
     pygame.font.init()
     fonts = {
-        "lg": pygame.font.SysFont("monospace", 36, bold=True),
-        "md": pygame.font.SysFont("monospace", 20, bold=True),
-        "sm": pygame.font.SysFont("monospace", 16),
-        "xs": pygame.font.SysFont("monospace", 13),
+        "lg": pygame.font.Font("assets/font.ttf", 36),
+        "md": pygame.font.Font("assets/font.ttf", 22),
+        "sm": pygame.font.Font("assets/font.ttf", 17),
+        "xs": pygame.font.Font("assets/font.ttf", 13),
     }
 
     screen_name = "list"

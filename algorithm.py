@@ -8,7 +8,7 @@ DIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
 
 
-def dfs_backtrack(grid, player, start, goal, diff=None):
+def backtracking_backtrack(grid, player, start, goal, diff=None):
     teleporter_map = build_teleporter_map(grid)
     visited    = set()
     visited.add(start)
@@ -17,7 +17,7 @@ def dfs_backtrack(grid, player, start, goal, diff=None):
     found_flag = [False]
     player.set_position(*start)
 
-    yield from _dfs(grid, player, start, goal, visited, path, step_seq,
+    yield from _backtracking(grid, player, start, goal, visited, path, step_seq,
                     teleporter_map, found_flag, diff)
 
     if not found_flag[0]:
@@ -31,7 +31,7 @@ def dfs_backtrack(grid, player, start, goal, diff=None):
     yield ("found", player.row, player.col, {})
 
 
-def dfs_chained(grid, player, start, goals, diff=None):
+def backtracking_chained(grid, player, start, goals, diff=None):
     """Map 2: visit all goals in sequence. HP carries over between segments."""
     teleporter_map = build_teleporter_map(grid)
     player.set_position(*start)
@@ -46,7 +46,7 @@ def dfs_chained(grid, player, start, goals, diff=None):
         step_seq   = []
         found_flag = [False]
 
-        yield from _dfs_segment(grid, player, current_pos, goal,
+        yield from _backtracking_segment(grid, player, current_pos, goal,
                                  visited, path, step_seq, teleporter_map, found_flag, diff)
 
         if found_flag[0]:
@@ -69,7 +69,7 @@ def dfs_chained(grid, player, start, goals, diff=None):
     yield ("found", player.row, player.col, {})
 
 
-def dfs_optimize(grid, player, start, goal, diff=None):
+def backtracking_optimize(grid, player, start, goal, diff=None):
     """Map 3: explore all paths, score each, replay the best."""
     teleporter_map = build_teleporter_map(grid)
     visited  = set()
@@ -87,7 +87,7 @@ def dfs_optimize(grid, player, start, goal, diff=None):
             "manhattan": manhattan, "total_keys": total_keys,
             "max_hp": max_hp, "weights": weights}
 
-    yield from _dfs_all(grid, player, start, goal, visited, path, step_seq,
+    yield from _backtracking_all(grid, player, start, goal, visited, path, step_seq,
                         teleporter_map, best, diff)
 
     if best["score"] is None:
@@ -140,9 +140,9 @@ def _replay(grid, player, start, step_seq, tmap, score=None, start_hp=100, diff=
         yield ("replay", player.row, player.col, extra)
 
 
-# ── Internal DFS helpers ───────────────────────────────────────────────────────
+# ── Internal backtracking helpers ─────────────────────────────────────────────
 
-def _dfs(grid, player, pos, goal, visited, path, step_seq, tmap, found_flag, diff=None):
+def _backtracking(grid, player, pos, goal, visited, path, step_seq, tmap, found_flag, diff=None):
     if pos == goal:
         found_flag[0] = True
         return
@@ -206,7 +206,7 @@ def _dfs(grid, player, pos, goal, visited, path, step_seq, tmap, found_flag, dif
             yield ("backtrack", r, c, {})
             continue
 
-        yield from _dfs(grid, player, final_pos, goal, visited, path,
+        yield from _backtracking(grid, player, final_pos, goal, visited, path,
                         step_seq, tmap, found_flag, diff)
 
         if found_flag[0]:
@@ -234,8 +234,8 @@ def _dfs(grid, player, pos, goal, visited, path, step_seq, tmap, found_flag, dif
             return
 
 
-def _dfs_all(grid, player, pos, goal, visited, path, step_seq, tmap, best, diff=None):
-    """Exhaustive DFS for Map 3. Never exits early on goal — always backtracks."""
+def _backtracking_all(grid, player, pos, goal, visited, path, step_seq, tmap, best, diff=None):
+    """Exhaustive backtracking for Map 3. Never exits early on goal — always backtracks."""
     if pos == goal:
         keys_spent  = sum(1 for e in path if e[5] is not None)
         hp_ratio    = player.hp / best["max_hp"]
@@ -313,7 +313,7 @@ def _dfs_all(grid, player, pos, goal, visited, path, step_seq, tmap, best, diff=
             yield ("backtrack", r, c, {})
             continue
 
-        yield from _dfs_all(grid, player, final_pos, goal,
+        yield from _backtracking_all(grid, player, final_pos, goal,
                              visited, path, step_seq, tmap, best, diff)
 
         # Always backtrack to keep exploring other paths
@@ -335,8 +335,8 @@ def _dfs_all(grid, player, pos, goal, visited, path, step_seq, tmap, best, diff=
         yield ("backtrack", r, c, {})
 
 
-def _dfs_segment(grid, player, pos, goal, visited, path, step_seq, tmap, found_flag, diff=None):
-    """Single segment of chained DFS. Signals completion via found_flag."""
+def _backtracking_segment(grid, player, pos, goal, visited, path, step_seq, tmap, found_flag, diff=None):
+    """Single segment of chained backtracking. Signals completion via found_flag."""
     if pos == goal:
         found_flag[0] = True
         return
@@ -400,7 +400,7 @@ def _dfs_segment(grid, player, pos, goal, visited, path, step_seq, tmap, found_f
             yield ("backtrack", r, c, {})
             continue
 
-        yield from _dfs_segment(grid, player, final_pos, goal,
+        yield from _backtracking_segment(grid, player, final_pos, goal,
                                   visited, path, step_seq, tmap, found_flag, diff)
 
         if found_flag[0]:

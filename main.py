@@ -12,7 +12,7 @@ import copy
 from map_loader    import load_map, find_tile
 from map_renderer  import MapRenderer
 from player        import Player
-from algorithm     import dfs_backtrack, dfs_chained, dfs_optimize
+from algorithm     import backtracking_backtrack, backtracking_chained, backtracking_optimize
 from ui            import HUD, HUD_HEIGHT
 from map_editor    import run_editor
 from sprite_loader import load_sprites
@@ -22,9 +22,10 @@ from sound_manager import SoundManager
 WINDOW_TITLE = "MazeCrawler"
 SCREEN_W     = 1440
 SCREEN_H     = 700
-FPS          = 60
+FPS          = 120
 
-MENU_BG_MAP  = "maps/Bg.txt"   # swap filename to change start screen background
+MENU_BG_MAP      = "assets/Bg.txt"        # swap filename to change start screen background
+MAP_SELECT_BG    = "assets/bg.png"   # background image for map picker (leave blank path to use solid colour)
 
 TRAIL_COLOR  = (80,  160, 255)
 TRAIL_ALPHA  = 55
@@ -39,6 +40,16 @@ BTN_HOV    = (50,  50,  75)
 BTN_ACT    = (60,  120, 200)
 ACCENT_HOV = (110, 185, 255)
 BORDER     = (50,  50,  70)
+
+# ── Dungeon Gold palette (shared across all menu screens) ─────────────────────
+DG_BG       = (20,  15,  10)
+DG_TEXT     = (235, 210, 140)
+DG_TEXT_DIM = (130, 100,  55)
+DG_BTN_BG   = (38,  28,  18)
+DG_BTN_HOV  = (62,  46,  26)
+DG_PLAY_BG  = (130,  90,  22)
+DG_PLAY_HOV = (168, 120,  38)
+DG_BORDER   = (120,  85,  25)
 
 
 # ── Simple button (local, avoids circular import) ─────────────────────────────
@@ -72,9 +83,9 @@ class Btn:
 
 # ── Algorithm picker ─────────────────────────────────────────────────────────
 ALGOS = [
-    ("classic",  "Classic DFS",  "First valid path"),
-    ("chained",  "Chained DFS",  "All goals in sequence"),
-    ("optimize", "Optimize DFS", "Best scored path"),
+    ("classic",  "Classic Backtracking",  "First valid path"),
+    ("chained",  "Chained Backtracking",  "All goals in sequence"),
+    ("optimize", "Optimize Backtracking", "Best scored path"),
 ]
 ALGO_LABELS = {k: name for k, name, _ in ALGOS}
 
@@ -348,7 +359,7 @@ def start_screen(screen):
         player   = Player(sp[0], sp[1], ts_bg)
         sprites  = load_sprites(ts_bg)
         renderer = MapRenderer(grid, ts_bg, sprites=sprites)
-        gen      = dfs_backtrack(grid, player, sp, gp)
+        gen      = backtracking_backtrack(grid, player, sp, gp)
         world_h  = _bg_rows * ts_bg
         cam_y    = -(menu_h - world_h) // 2 if world_h <= menu_h else 0
         _bg.update(
@@ -385,14 +396,6 @@ def start_screen(screen):
     block_top              = (menu_h - block_h) // 2
     title_cy               = block_top + char_h // 2
     btns_top               = block_top + char_h + TITLE_TO_BTNS
-
-    # Dungeon Gold palette — local to start screen only
-    DG_TEXT     = (235, 210, 140)
-    DG_BTN_BG   = (38,  28,  18)
-    DG_BTN_HOV  = (62,  46,  26)
-    DG_PLAY_BG  = (130, 90,  22)
-    DG_PLAY_HOV = (168, 120, 38)
-    DG_BORDER   = (120, 85,  25)
 
     BTN_DEFS = ["Play", "Map Editor", "Quit"]
     btn_offsets = [-float(menu_h)] * 3
@@ -507,11 +510,21 @@ def start_screen(screen):
 # ── Map selection screen ──────────────────────────────────────────────────────
 def map_select_screen(screen):
     pygame.font.init()
-    font_lg = pygame.font.SysFont("monospace", 48, bold=True)
-    font_md = pygame.font.SysFont("monospace", 22, bold=True)
-    font_sm = pygame.font.SysFont("monospace", 16)
+    font_lg = pygame.font.Font("assets/font.ttf", 48)
+    font_md = pygame.font.Font("assets/font.ttf", 22)
+    font_sm = pygame.font.Font("assets/font.ttf", 16)
     clock   = pygame.time.Clock()
     cx      = SCREEN_W // 2
+
+    # ── Background image (scales to screen, falls back to solid colour) ────────
+    _bg_img = None
+    try:
+        _raw    = pygame.image.load(MAP_SELECT_BG).convert()
+        _full   = pygame.transform.smoothscale(_raw, (SCREEN_W, SCREEN_H))
+        _small  = pygame.transform.smoothscale(_full, (SCREEN_W // 8, SCREEN_H // 8))
+        _bg_img = pygame.transform.smoothscale(_small, (SCREEN_W, SCREEN_H))
+    except Exception:
+        pass
 
     maps = sorted(f for f in os.listdir("maps") if f.endswith(".txt"))
 
@@ -523,9 +536,8 @@ def map_select_screen(screen):
     back_h, back_gap = 48, 18
     n = len(maps)
 
-    # Measure approximate font heights for centering the whole block
     TITLE_H      = 52
-    SUB_H        = 18
+    SUB_H        = 20
     TITLE_TO_SUB = 12
     SUB_TO_BTNS  = 22
 
@@ -539,11 +551,15 @@ def map_select_screen(screen):
 
     map_btns = [
         Btn((cx - 140, start_y + i * (btn_h + btn_gap), 280, btn_h),
-            label(m), font_md)
+            label(m), font_md,
+            color=DG_BTN_BG, hover=DG_BTN_HOV, tc=DG_TEXT,
+            border_color=DG_BORDER, pop=True)
         for i, m in enumerate(maps)
     ]
     back_y   = start_y + btns_block_h + back_gap
-    btn_back = Btn((cx - 100, back_y, 200, back_h), "← Back", font_md)
+    btn_back = Btn((cx - 100, back_y, 200, back_h), "← Back", font_md,
+                   color=DG_BTN_BG, hover=DG_BTN_HOV, tc=DG_TEXT,
+                   border_color=DG_BORDER)
 
     while True:
         mp = pygame.mouse.get_pos()
@@ -562,17 +578,18 @@ def map_select_screen(screen):
                 if b.clicked(event):
                     return f"maps/{maps[i]}"
 
-        screen.fill(BG)
-        title = font_lg.render("Select a Map", True, TEXT)
+        if _bg_img:
+            screen.blit(_bg_img, (0, 0))
+        else:
+            screen.fill(DG_BG)
+        title = font_lg.render("Select a Map", True, DG_TEXT)
         screen.blit(title, title.get_rect(centerx=cx, y=title_y))
-        sub = font_sm.render("Choose a map to run the algorithm on", True, TEXT_DIM)
-        screen.blit(sub, sub.get_rect(centerx=cx, y=sub_y))
 
         if maps:
             for b in map_btns:
                 b.draw(screen)
         else:
-            msg = font_sm.render("No maps found in /maps/", True, TEXT_DIM)
+            msg = font_sm.render("No maps found in /maps/", True, DG_TEXT_DIM)
             screen.blit(msg, msg.get_rect(centerx=cx, y=500))
 
         btn_back.draw(screen)
@@ -670,11 +687,11 @@ def build_run(grid_master, tile_size, algo, diff="medium"):
         goals = [(len(grid)-2, len(grid[0])-2)]
     player = Player(start[0], start[1], tile_size, start_hp=cfg["start_hp"])
     if algo == "chained":
-        gen = dfs_chained(grid, player, start, goals, diff=cfg)
+        gen = backtracking_chained(grid, player, start, goals, diff=cfg)
     elif algo == "optimize":
-        gen = dfs_optimize(grid, player, start, goals[0], diff=cfg)
+        gen = backtracking_optimize(grid, player, start, goals[0], diff=cfg)
     else:
-        gen = dfs_backtrack(grid, player, start, goals[0], diff=cfg)
+        gen = backtracking_backtrack(grid, player, start, goals[0], diff=cfg)
     return grid, player, gen, goals
 
 
