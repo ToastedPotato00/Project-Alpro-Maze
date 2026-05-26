@@ -1,7 +1,3 @@
-"""
-algorithm.py — ice sliding removed
-"""
-
 from tiles import is_passable, get_step_cost, apply_tile_effect, build_teleporter_map
 
 DIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]

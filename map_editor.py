@@ -35,7 +35,7 @@ MAPS_EXT    = "*.txt"
 
 # ── Background images (one per screen, falls back to solid colour if missing) ─
 MAP_LIST_BG = "assets/bg2.jpg"    # map editor list screen
-NEW_MAP_BG  = "assets/bg_newmap.png"    # new map dialog screen
+NEW_MAP_BG  = "assets/bg2.jpg"    # new map dialog screen
 
 
 def _load_bg(path, w, h):
@@ -64,6 +64,7 @@ INPUT_ACT  = (44,  32,  16)
 INPUT_BDR  = (90,  65,  25)
 SEL_BORDER = (255, 215,  40)
 GRID_LINE  = (50,  38,  20)
+BG_CANVAS  = (18,  18,  24)
 
 FPS = 60
 
@@ -411,7 +412,7 @@ class EditorScreen:
         f = self.fonts
         self.btn_save = Button(
             (self.W - 150, 10, 138, 40),
-            "💾  Save", color=BTN_ACT, hover_color=ACCENT_HOV,
+            "Save", color=BTN_ACT, hover_color=ACCENT_HOV,
             text_color=(255,255,255), font=f["sm"]
         )
         self.btn_back = Button(
@@ -540,7 +541,7 @@ class EditorScreen:
     # ── Draw ──────────────────────────────────────────────────────────────────
     def _draw(self):
         s = self.surface
-        s.fill(BG)
+        s.fill(BG_CANVAS)
 
         # ── Grid (clipped to canvas band) ─────────────────────────────────────
         ts  = self.ts
@@ -586,7 +587,7 @@ class EditorScreen:
 
         # ── Palette panel ─────────────────────────────────────────────────────
         pal_y = self.H - PALETTE_H
-        pygame.draw.rect(s, PANEL_BG, (0, pal_y, self.W, PALETTE_H))
+        pygame.draw.rect(s, BG_CANVAS, (0, pal_y, self.W, PALETTE_H))
         pygame.draw.line(s, BORDER, (0, pal_y), (self.W, pal_y), 1)
 
         pal_tile_sprites = self.pal_sprites.get("tiles", {}) if self.pal_sprites else {}
@@ -626,7 +627,7 @@ class EditorScreen:
             s.set_clip(clip_before)
 
         # ── Top bar ───────────────────────────────────────────────────────────
-        pygame.draw.rect(s, PANEL_BG, (0, 0, self.W, TOP_BAR_H))
+        pygame.draw.rect(s, BG_CANVAS, (0, 0, self.W, TOP_BAR_H))
         pygame.draw.line(s, BORDER, (0, TOP_BAR_H), (self.W, TOP_BAR_H), 1)
 
         map_name = os.path.splitext(os.path.basename(self.map_path))[0]
@@ -644,7 +645,7 @@ class EditorScreen:
 
         # Saved / error feedback
         if self.saved_timer > 0:
-            msg = self.fonts["sm"].render("✓ Saved!", True, (80, 220, 80))
+            msg = self.fonts["sm"].render("Saved!", True, (80, 220, 80))
             s.blit(msg, msg.get_rect(right=self.W - 160, centery=TOP_BAR_H // 3))
         if self.error_msg:
             msg = self.fonts["sm"].render(self.error_msg, True, (220, 80, 80))

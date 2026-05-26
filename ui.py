@@ -7,8 +7,8 @@ HUD_BORDER   = (40, 40, 55)
 PADDING      = 10
 
 # ── Fonts ─────────────────────────────────────────────────────────────────────
-FONT_MAIN    = 16
-FONT_LABEL   = 12
+FONT_MAIN    = 25
+FONT_LABEL   = 20
 
 # ── HP bar ────────────────────────────────────────────────────────────────────
 HP_BAR_W     = 100
@@ -53,8 +53,10 @@ STATUS_LABELS = {
 class HUD:
     def __init__(self, screen_w: int, screen_h: int):
         pygame.font.init()
-        self.font     = pygame.font.SysFont("monospace", FONT_MAIN, bold=True)
-        self.font_sm  = pygame.font.SysFont("monospace", FONT_LABEL)
+        self.font     = pygame.font.Font("assets/font.ttf", FONT_MAIN)
+        
+        self.font_sm  = pygame.font.Font("assets/font.ttf", FONT_LABEL)
+        
         self.screen_w = screen_w
         self.screen_h = screen_h
         self.hud_y    = screen_h - HUD_HEIGHT
@@ -75,14 +77,14 @@ class HUD:
         x = PADDING
         lbl = self.font_sm.render("HP", True, LABEL_COLOR)
         surface.blit(lbl, (x, cy - lbl.get_height() // 2))
-        x += lbl.get_width() + 6
-        x = self._draw_hp_bar(surface, player.hp, x, cy)
+        x += lbl.get_width() - 18
+        x = self._draw_hp_bar(surface, player.hp, x+24, cy)
         hp_txt = self.font.render(str(max(0, player.hp)), True, TEXT_COLOR)
         surface.blit(hp_txt, (x, cy - hp_txt.get_height() // 2))
 
         # ── Zone 2: KEYS + STEPS (fixed anchor x=185) ────────────────────────
-        self._draw_divider(surface, 183, cy)
-        x = 193
+        self._draw_divider(surface, 200, cy)
+        x = 210
         k_lbl = self.font_sm.render("KEYS", True, LABEL_COLOR)
         k_val = self.font.render(str(player.keys), True, KEY_COLOR)
         surface.blit(k_lbl, (x, cy - k_lbl.get_height() // 2))
@@ -97,22 +99,20 @@ class HUD:
         surface.blit(s_val, (x, cy - s_val.get_height() // 2))
 
         # ── Zone 3 + 4: Speed / Algo / Diff dropdown trigger buttons ────────────
-        self._draw_divider(surface, 346, cy)
-        btn_x   = 360
-        sbtn_w  = 100
-        abtn_w  = 185
-        dbtn_w  = 130
+        self._draw_divider(surface, 410, cy)
+        btn_x   = 420
+        sbtn_w  = 150
+        abtn_w  = 235
+        dbtn_w  = 180
         btn_h   = HUD_HEIGHT - 16
-        btn_gap = 6
+        btn_gap = 30
 
         speed_btn = pygame.Rect(btn_x, self.hud_y + 8, sbtn_w, btn_h)
         pygame.draw.rect(surface, (40, 40, 62), speed_btn, border_radius=6)
         pygame.draw.rect(surface, (65, 65, 92), speed_btn, 1, border_radius=6)
-        sp_surf = self.font_sm.render(f"{speed_label}  ▼", True, (160, 230, 180))
+        sp_surf = self.font_sm.render(f"{speed_label} ▼", True, (160, 230, 180))
         surface.blit(sp_surf, sp_surf.get_rect(center=speed_btn.center))
-
-        self._draw_divider(surface, btn_x + sbtn_w + btn_gap, cy)
-        ax = btn_x + sbtn_w + btn_gap * 2 + 6
+        ax = btn_x + sbtn_w + btn_gap
 
         algo_btn = pygame.Rect(ax, self.hud_y + 8, abtn_w, btn_h)
         pygame.draw.rect(surface, (40, 40, 62), algo_btn, border_radius=6)
@@ -132,9 +132,9 @@ class HUD:
         stxt       = self.font.render(slabel, True, scolor)
         score_surf = (self.font_sm.render(f"Score: {score}", True, (200, 200, 150))
                       if score is not None else None)
-        hint       = self.font_sm.render("R restart   ESC menu", True, (80, 80, 105))
+        hint       = self.font_sm.render("  R restart   ESC menu", True, (80, 80, 105))
 
-        line_gap = 4
+        line_gap = 0
         lines    = [stxt] + ([score_surf] if score_surf else []) + [hint]
         block_h  = sum(l.get_height() for l in lines) + line_gap * (len(lines) - 1)
         block_top = self.hud_y + (HUD_HEIGHT - block_h) // 2

@@ -118,8 +118,10 @@ class AlgoDropdown:
         self.open     = False
         self._pending = None
         self._panel   = None
-        self._fn      = pygame.font.SysFont("monospace", 13, bold=True)
-        self._fs      = pygame.font.SysFont("monospace", 11)
+        self._fn      = pygame.font.Font("assets/font.ttf", 20)
+        
+        self._fs      = pygame.font.Font("assets/font.ttf", 18)
+        
 
     @property
     def label(self):
@@ -191,8 +193,10 @@ class DiffDropdown:
         self.open     = False
         self._pending = None
         self._panel   = None
-        self._fn      = pygame.font.SysFont("monospace", 13, bold=True)
-        self._fs      = pygame.font.SysFont("monospace", 11)
+        self._fn      = pygame.font.Font("assets/font.ttf", 20)
+        
+        self._fs      = pygame.font.Font("assets/font.ttf", 18)
+        
 
     @property
     def label(self):
@@ -262,8 +266,10 @@ class SpeedDropdown:
         self.current = default
         self.open    = False
         self._panel  = None
-        self._fn     = pygame.font.SysFont("monospace", 13, bold=True)
-        self._fs     = pygame.font.SysFont("monospace", 11)
+        self._fn     = pygame.font.Font("assets/font.ttf", 20)
+        
+        self._fs     = pygame.font.Font("assets/font.ttf", 18)
+        
 
     @property
     def label(self):
@@ -601,9 +607,12 @@ def map_select_screen(screen):
 def draw_results_overlay(surface, status, player, visited_cells,
                          backtrack_count, paths_explored, best_score,
                          screen_w, screen_h):
-    font_lg = pygame.font.SysFont("monospace", 28, bold=True)
-    font_md = pygame.font.SysFont("monospace", 16, bold=True)
-    font_sm = pygame.font.SysFont("monospace", 13)
+    font_lg = pygame.font.Font("assets/font.ttf", 50)
+    
+    font_md = pygame.font.Font("assets/font.ttf", 30)
+    
+    font_sm = pygame.font.Font("assets/font.ttf", 30)
+    
 
     backdrop = pygame.Surface((screen_w, screen_h), pygame.SRCALPHA)
     backdrop.fill((0, 0, 0, 170))
@@ -621,8 +630,8 @@ def draw_results_overlay(surface, status, player, visited_cells,
     if best_score is not None:
         stats.append(("Best Score",     str(best_score),      (255, 215, 40)))
 
-    row_h   = 36
-    panel_w = 420
+    row_h   = 56
+    panel_w = 650
     panel_h = 72 + len(stats) * row_h + 52  # title block + rows + divider+hint
 
     px = (screen_w - panel_w) // 2
@@ -637,7 +646,7 @@ def draw_results_overlay(surface, status, player, visited_cells,
         title_text = "No Solution Found"
         title_col  = (210,  55,  55)
 
-    pygame.draw.rect(surface, (18, 18, 30), (px, py, panel_w, panel_h), border_radius=14)
+    pygame.draw.rect(surface, (20,  15,  10), (px, py, panel_w, panel_h), border_radius=14)
     pygame.draw.rect(surface, border_col,   (px, py, panel_w, panel_h), 2, border_radius=14)
 
     t_surf = font_lg.render(title_text, True, title_col)
@@ -821,9 +830,9 @@ def run_game(screen, map_path, sounds=None):
                     trail_surf = make_overlay(ts, *TRAIL_COLOR, TRAIL_ALPHA)
                     bt_surf    = make_overlay(ts, 255, 120, 60, BT_ALPHA)
                     gold_surf  = make_overlay(ts, 255, 215, 40, 110)
-            if not dropdown.handle_event(event, algo_btn_rect):
-                if not diff_dropdown.handle_event(event, diff_btn_rect):
-                    speed_dd.handle_event(event, speed_btn_rect)
+            dropdown.handle_event(event, algo_btn_rect)
+            diff_dropdown.handle_event(event, diff_btn_rect)
+            speed_dd.handle_event(event, speed_btn_rect)
 
         if dropdown.pending_algo:
             algo = dropdown.consume()
@@ -882,8 +891,8 @@ def run_game(screen, map_path, sounds=None):
                         status = "backtracking"
                         player.is_active    = True
                         player.is_backtrack = True
-                        backtrack_cells.add((r, c))
                         if len(solution_path) > 1:
+                            backtrack_cells.add(solution_path[-1])
                             solution_path.pop()
                         backtrack_count += 1
                         renderer.update_grid(grid)
