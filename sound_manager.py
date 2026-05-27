@@ -12,7 +12,7 @@ SOUND_FILES = {
     "goal":       "sounds/goal.mp3",
 }
 
-BGM_PATH = "sounds/bgm.mp3"
+BGM_PATH = "sounds/bg1.mp3"
 
 
 class SoundManager:
