@@ -323,7 +323,7 @@ class SpeedDropdown:
 
 
 # ── Start / map-select screen ─────────────────────────────────────────────────
-def start_screen(screen):
+def start_screen(screen, sounds=None):
     pygame.font.init()
     font_lg = pygame.font.Font("assets/font.ttf", 64)
     font_md = pygame.font.Font("assets/font.ttf", 22)
@@ -433,9 +433,15 @@ def start_screen(screen):
                 return "quit"
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 return "quit"
-            if btns[0].clicked(event): return "play"
-            if btns[1].clicked(event): return "editor"
-            if btns[2].clicked(event): return "quit"
+            if btns[0].clicked(event):
+                if sounds: sounds.play("click")
+                return "play"
+            if btns[1].clicked(event):
+                if sounds: sounds.play("click")
+                return "editor"
+            if btns[2].clicked(event):
+                if sounds: sounds.play("click")
+                return "quit"
 
         # ── Advance background bot ───────────────────────────────────────────
         if _bg_ok and _bg and now - _bg["last_step"] >= BG_STEP_DELAY:
@@ -514,7 +520,7 @@ def start_screen(screen):
 
 
 # ── Map selection screen ──────────────────────────────────────────────────────
-def map_select_screen(screen):
+def map_select_screen(screen, sounds=None):
     pygame.font.init()
     font_lg = pygame.font.Font("assets/font.ttf", 48)
     font_md = pygame.font.Font("assets/font.ttf", 22)
@@ -579,9 +585,11 @@ def map_select_screen(screen):
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 return None
             if btn_back.clicked(event):
+                if sounds: sounds.play("click")
                 return None
             for i, b in enumerate(map_btns):
                 if b.clicked(event):
+                    if sounds: sounds.play("click")
                     return f"maps/{maps[i]}"
 
         if _bg_img:
@@ -830,9 +838,12 @@ def run_game(screen, map_path, sounds=None):
                     trail_surf = make_overlay(ts, *TRAIL_COLOR, TRAIL_ALPHA)
                     bt_surf    = make_overlay(ts, 255, 120, 60, BT_ALPHA)
                     gold_surf  = make_overlay(ts, 255, 215, 40, 110)
-            dropdown.handle_event(event, algo_btn_rect)
-            diff_dropdown.handle_event(event, diff_btn_rect)
-            speed_dd.handle_event(event, speed_btn_rect)
+            if dropdown.handle_event(event, algo_btn_rect) and sounds:
+                sounds.play("click")
+            if diff_dropdown.handle_event(event, diff_btn_rect) and sounds:
+                sounds.play("click")
+            if speed_dd.handle_event(event, speed_btn_rect) and sounds:
+                sounds.play("click")
 
         if dropdown.pending_algo:
             algo = dropdown.consume()
@@ -1010,13 +1021,13 @@ def main():
         # Always restore menu-sized window when returning
         screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
 
-        action = start_screen(screen)
+        action = start_screen(screen, sounds)
         screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))  # restore after menu resize
 
         if action == "quit":
             break
         elif action == "play":
-            map_path = map_select_screen(screen)
+            map_path = map_select_screen(screen, sounds)
             if map_path is None:
                 continue
             result = run_game(screen, map_path, sounds=sounds)
@@ -1024,7 +1035,7 @@ def main():
                 break
             # result == "menu" → loop back to start screen
         elif action == "editor":
-            result = run_editor(screen)
+            result = run_editor(screen, sounds=sounds)
             if result == "quit":
                 break
             # result == "back" → loop back to start screen

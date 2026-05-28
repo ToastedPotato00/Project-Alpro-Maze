@@ -10,6 +10,7 @@ SOUND_FILES = {
     "key_pickup": "sounds/key.mp3",
     "wall_break": "sounds/wall_break.mp3",
     "goal":       "sounds/goal.mp3",
+    "click":      "sounds/click.mp3",
 }
 
 BGM_PATH = "sounds/bg1.mp3"

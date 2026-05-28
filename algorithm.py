@@ -236,7 +236,7 @@ def _backtracking_all(grid, player, pos, goal, visited, path, step_seq, tmap, be
         keys_spent  = sum(1 for e in path if e[5] is not None)
         hp_ratio    = player.hp / best["max_hp"]
         step_ratio  = best["manhattan"] / player.steps if player.steps > 0 else 1.0
-        step_ratio  = min(step_ratio, 1.0)          # cap at 1 (can't beat manhattan)
+        step_ratio  = min(step_ratio, 1.0)
         if best["total_keys"] > 0:
             key_ratio = 1.0 - keys_spent / best["total_keys"]
         else:

@@ -141,9 +141,10 @@ class TextInput:
 # ── Map list screen ──────────────────────────────────────────────────────────
 
 class MapListScreen:
-    def __init__(self, surface, fonts):
+    def __init__(self, surface, fonts, sounds=None):
         self.surface = surface
         self.fonts   = fonts
+        self.sounds  = sounds
         self.W, self.H = surface.get_size()
         self._bg_img = _load_bg(MAP_LIST_BG, self.W, self.H)
         self._build()
@@ -192,11 +193,14 @@ class MapListScreen:
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     return ("back", None)
                 if self.btn_back.is_clicked(event):
+                    if self.sounds: self.sounds.play("click")
                     return ("back", None)
                 if self.btn_new.is_clicked(event):
+                    if self.sounds: self.sounds.play("click")
                     return ("new", None)
                 for btn, path in self.map_btns:
                     if btn.is_clicked(event):
+                        if self.sounds: self.sounds.play("click")
                         return ("edit", path)
 
             self._draw()
@@ -230,9 +234,10 @@ class MapListScreen:
 # ── New map dialog ────────────────────────────────────────────────────────────
 
 class NewMapScreen:
-    def __init__(self, surface, fonts):
+    def __init__(self, surface, fonts, sounds=None):
         self.surface = surface
         self.fonts   = fonts
+        self.sounds  = sounds
         self.W, self.H = surface.get_size()
         self.error   = ""
         self._bg_img = _load_bg(NEW_MAP_BG, self.W, self.H)
@@ -285,8 +290,10 @@ class NewMapScreen:
                 for inp in inputs:
                     inp.handle_event(event)
                 if self.btn_back.is_clicked(event):
+                    if self.sounds: self.sounds.play("click")
                     return ("back", None, 0, 0)
                 if self.btn_confirm.is_clicked(event):
+                    if self.sounds: self.sounds.play("click")
                     result = self._validate()
                     if result:
                         name, cols, rows = result
@@ -362,9 +369,10 @@ PAL_SPRITE_SIZE = 64   # larger sprites now that palette is taller
 
 
 class EditorScreen:
-    def __init__(self, surface, fonts, map_path: str, grid: list):
+    def __init__(self, surface, fonts, map_path: str, grid: list, sounds=None):
         self.surface  = surface
         self.fonts    = fonts
+        self.sounds   = sounds
         self.map_path = map_path
         self.grid     = grid          # list[list[str]], mutable
         self.W, self.H = surface.get_size()
@@ -449,14 +457,17 @@ class EditorScreen:
                         self._save()
 
                 if self.btn_back.is_clicked(event):
+                    if self.sounds: self.sounds.play("click")
                     return "back"
                 if self.btn_save.is_clicked(event):
+                    if self.sounds: self.sounds.play("click")
                     self._save()
 
                 # Palette click
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     for r, sym, label, col in self.pal_rects:
                         if r.collidepoint(event.pos):
+                            if self.sounds: self.sounds.play("click")
                             self.selected_tile = sym
 
                 # Start / stop painting
@@ -688,7 +699,7 @@ def save_grid(path: str, grid: list):
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
-def run_editor(surface):
+def run_editor(surface, sounds=None):
     """
     Main entry called from main.py.
     Manages screen transitions internally.
@@ -706,7 +717,7 @@ def run_editor(surface):
 
     while True:
         if screen_name == "list":
-            result = MapListScreen(surface, fonts).run()
+            result = MapListScreen(surface, fonts, sounds=sounds).run()
             action = result[0]
             if action == "quit":   return "quit"
             if action == "back":   return "back"
@@ -719,7 +730,7 @@ def run_editor(surface):
                 editor_grid = grid
 
         elif screen_name == "new":
-            result = NewMapScreen(surface, fonts).run()
+            result = NewMapScreen(surface, fonts, sounds=sounds).run()
             action = result[0]
             if action == "quit":  return "quit"
             if action == "back":  screen_name = "list"
@@ -733,6 +744,6 @@ def run_editor(surface):
                 screen_name = "editor"
 
         elif screen_name == "editor":
-            result = EditorScreen(surface, fonts, editor_path, editor_grid).run()
+            result = EditorScreen(surface, fonts, editor_path, editor_grid, sounds=sounds).run()
             if result == "quit": return "quit"
             if result == "back": screen_name = "list"
