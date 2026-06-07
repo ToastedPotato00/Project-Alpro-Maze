@@ -696,13 +696,14 @@ def make_overlay(tile_size, r, g, b, a):
 
 def build_run(grid_master, tile_size, algo, diff="medium"):
     cfg    = DIFF_CONFIGS[diff]
-    grid   = copy.deepcopy(grid_master)
+    grid   = copy.deepcopy(grid_master)  # working copy — algorithm mutates this directly
     starts = find_tile(grid, "S")
-    goals  = find_tile(grid, "G")
+    goals  = find_tile(grid, "G")        # ordered top-to-bottom, left-to-right from the map file
     start  = starts[0] if starts else (1, 1)
     if not goals:
         goals = [(len(grid)-2, len(grid[0])-2)]
     player = Player(start[0], start[1], tile_size, start_hp=cfg["start_hp"])
+    # gen is a paused generator — nothing in the algorithm runs until next(gen) is called
     if algo == "chained":
         gen = backtracking_chained(grid, player, start, goals, diff=cfg)
     elif algo == "optimize":
@@ -781,6 +782,10 @@ def run_game(screen, map_path, sounds=None):
     renderer = MapRenderer(grid, ts, sprites=sprites)
     hud      = HUD(SCREEN_W, SCREEN_H)
 
+    # Visual tracking — separate from the algorithm's internal visited set.
+    # visited_cells: every cell the bot has stepped on (blue overlay)
+    # backtrack_cells: cells the bot backed out of (orange overlay)
+    # solution_path: stack of the current route from start to player; mirrors step_seq during search
     visited_cells    = {(player.row, player.col)}
     backtrack_cells  = set()
     solution_path    = [(player.row, player.col)]
@@ -882,32 +887,40 @@ def run_game(screen, map_path, sounds=None):
             time.sleep(0.12)
 
         if not finished and not player.is_frozen():
+            # Backtracking runs at half the normal delay so dead-end retreats feel snappy
             delay = speed_dd.delay * (0.5 if status == "backtracking" else 1.0)
+            # Time gate — only advance the algorithm once per delay interval.
+            # Frames in between just redraw the current state without moving the bot.
             if now - last_step >= delay:
                 try:
+                    # Advance the algorithm exactly one step.
+                    # Each next() call resumes the generator until the next yield in algorithm.py.
                     kind, r, c, extra = next(gen)
                     last_step = time.time()
                     if kind == "move":
+                        # Bot stepped onto a new cell during search
                         status = "exploring"
                         player.is_active    = True
                         player.is_backtrack = False
                         visited_cells.add((r, c))
-                        backtrack_cells.discard((r, c))
-                        solution_path.append((r, c))
+                        backtrack_cells.discard((r, c))  # un-orange it if previously backtracked
+                        solution_path.append((r, c))     # push onto current path stack
                         renderer.update_grid(grid)
                         if extra.get("freeze_frames", 0) > 0:
                             player.freeze_frames_left = extra["freeze_frames"]
                         _play_tile_sound(sounds, extra)
                     elif kind == "backtrack":
+                        # Bot backing out of a dead end
                         status = "backtracking"
                         player.is_active    = True
                         player.is_backtrack = True
                         if len(solution_path) > 1:
-                            backtrack_cells.add(solution_path[-1])
-                            solution_path.pop()
+                            backtrack_cells.add(solution_path[-1])  # mark the dead-end cell orange
+                            solution_path.pop()                      # pop the path stack
                         backtrack_count += 1
                         renderer.update_grid(grid)
                     elif kind == "segment_found":
+                        # Chained algo only — one goal reached, more remain
                         active_goal_idx += 1
                         status = "checkpoint"
                         player.is_active    = True
@@ -916,20 +929,23 @@ def run_game(screen, map_path, sounds=None):
                         backtrack_cells.discard((r, c))
                         sounds.play("goal")
                     elif kind == "candidate":
+                        # Optimize algo only — a complete path was scored (may or may not be best)
                         status = "candidate"
                         paths_explored += 1
                         if extra.get("is_best"):
                             best_score = extra["score"]
                     elif kind == "replay_start":
+                        # Search phase is over — wipe the exploration trail and start the clean replay
                         status = "replaying"
                         best_score      = extra.get("score")
-                        visited_cells   = {(r, c)}
+                        visited_cells   = {(r, c)}   # reset to just the start position
                         backtrack_cells = set()
                         solution_path   = [(r, c)]
                         player.is_active    = True
                         player.is_backtrack = False
                         renderer.update_grid(grid)
                     elif kind == "replay":
+                        # Bot re-walking the found path — painted gold via solution_path overlay
                         status = "replaying"
                         player.is_active    = True
                         player.is_backtrack = False
@@ -941,6 +957,7 @@ def run_game(screen, map_path, sounds=None):
                             player.freeze_frames_left = extra["freeze_frames"]
                         _play_tile_sound(sounds, extra)
                     elif kind == "found":
+                        # Algorithm fully done — goal reached and replay complete
                         status = "found"
                         player.is_active    = False
                         player.is_backtrack = False
@@ -955,6 +972,7 @@ def run_game(screen, map_path, sounds=None):
                         finished     = True
                         show_overlay = True
                 except StopIteration:
+                    # Generator exhausted without yielding found/no_solution — treat as no solution
                     if status not in ("found", "no_solution"):
                         status = "no_solution"
                     finished     = True
