@@ -1,12 +1,12 @@
 from tiles import is_passable, get_step_cost, apply_tile_effect, build_teleporter_map
 
-# (delta_baris, delta_kolom) untuk ATAS, BAWAH, KIRI, KANAN — urutan menentukan arah yang dicoba pertama
+# ATAS, BAWAH, KIRI, KANAN  urutan menentukan arah yang dicoba 
 DIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
 
 
 def backtracking_backtrack(grid, player, start, goal, diff=None):
-    # Orkestrator untuk backtracking klasik — dipanggil SEKALI, tidak pernah rekursi.
+    # backtracking klasik dipanggil SEKALI, tidak pernah rekursi.
     # Memulai pencarian rekursif, lalu menangani replay setelah tujuan ditemukan.
     teleporter_map = build_teleporter_map(grid)
     visited    = set()
@@ -34,8 +34,8 @@ def backtracking_backtrack(grid, player, start, goal, diff=None):
 
 
 def backtracking_chained(grid, player, start, goals, diff=None):
-    # Orkestrator untuk peta multi-tujuan — menjalankan satu pencarian independen per tujuan secara berurutan.
-    # Urutan tujuan ditentukan oleh find_tile() yang memindai atas-ke-bawah, kiri-ke-kanan.
+    # backtracking chained  menjalankan satu pencarian independen per tujuan secara berurutan.
+    # Urutan tujuan ditentukan oleh find_tile()
     teleporter_map = build_teleporter_map(grid)
     player.set_position(*start)
     current_pos = start
