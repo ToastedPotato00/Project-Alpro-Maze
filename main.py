@@ -1,5 +1,5 @@
 """
-main.py — with start screen and Map Editor button
+main.py — dengan layar start dan tombol Map Editor
 """
 
 import math
@@ -24,14 +24,14 @@ SCREEN_W     = 1440
 SCREEN_H     = 700
 FPS          = 120
 
-MENU_BG_MAP      = "assets/Bg.txt"        # swap filename to change start screen background
-MAP_SELECT_BG    = "assets/bg.png"   # background image for map picker (leave blank path to use solid colour)
+MENU_BG_MAP      = "assets/Bg.txt"        # ganti nama file untuk mengubah latar layar start
+MAP_SELECT_BG    = "assets/bg.png"   # gambar latar untuk pemilih peta (biarkan path kosong untuk menggunakan warna solid)
 
 TRAIL_COLOR  = (80,  160, 255)
 TRAIL_ALPHA  = 55
 BT_ALPHA     = 30
 
-# ── Colours ───────────────────────────────────────────────────────────────────
+# ── Warna ───────────────────────────────────────────────────────────────────
 BG         = (18,  18,  24)
 TEXT       = (200, 200, 210)
 TEXT_DIM   = (100, 100, 120)
@@ -41,7 +41,7 @@ BTN_ACT    = (60,  120, 200)
 ACCENT_HOV = (110, 185, 255)
 BORDER     = (50,  50,  70)
 
-# ── Dungeon Gold palette (shared across all menu screens) ─────────────────────
+# ── Palet Dungeon Gold (digunakan bersama di semua layar menu) ─────────────────────
 DG_BG       = (20,  15,  10)
 DG_TEXT     = (235, 210, 140)
 DG_TEXT_DIM = (130, 100,  55)
@@ -52,7 +52,7 @@ DG_PLAY_HOV = (168, 120,  38)
 DG_BORDER   = (120,  85,  25)
 
 
-# ── Simple button (local, avoids circular import) ─────────────────────────────
+# ── Tombol sederhana (lokal, menghindari circular import) ─────────────────────────────
 class Btn:
     def __init__(self, rect, label, font,
                  color=BTN_BG, hover=BTN_HOV, tc=TEXT, border_color=None, pop=False):
@@ -81,7 +81,7 @@ class Btn:
                 and self.rect.collidepoint(e.pos))
 
 
-# ── Algorithm picker ─────────────────────────────────────────────────────────
+# ── Pemilih algoritma ─────────────────────────────────────────────────────────
 ALGOS = [
     ("classic",  "Classic Backtracking",  "First valid path"),
     ("chained",  "Chained Backtracking",  "All goals in sequence"),
@@ -89,7 +89,7 @@ ALGOS = [
 ]
 ALGO_LABELS = {k: name for k, name, _ in ALGOS}
 
-# ── Difficulty picker ─────────────────────────────────────────────────────────
+# ── Pemilih kesulitan ─────────────────────────────────────────────────────────
 DIFFS = [
     ("easy",     "Easy",     "Half penalty"),
     ("medium",   "Medium",   "Default"),
@@ -98,7 +98,7 @@ DIFFS = [
 ]
 DIFF_LABELS = {k: name for k, name, _ in DIFFS}
 
-# ── Speed picker ──────────────────────────────────────────────────────────────
+# ── Pemilih kecepatan ──────────────────────────────────────────────────────────────
 SPEEDS = [
     ("fast",   "Fast",   "0.01s / step",  0.01),
     ("normal", "Normal", "0.25s / step",  0.25),
@@ -322,14 +322,14 @@ class SpeedDropdown:
                          (px + 10, py + i * self.ROW_H + 23))
 
 
-# ── Start / map-select screen ─────────────────────────────────────────────────
+# ── Layar start / pemilihan peta ─────────────────────────────────────────────────
 def start_screen(screen, sounds=None):
     pygame.font.init()
     font_lg = pygame.font.Font("assets/font.ttf", 64)
     font_md = pygame.font.Font("assets/font.ttf", 22)
     clock   = pygame.time.Clock()
 
-    # ── Compute window size from map (fit by height, width follows) ──────────
+    # ── Hitung ukuran jendela dari peta (sesuaikan tinggi, lebar mengikuti) ──────────
     try:
         grid_master_bg, _ = load_map(MENU_BG_MAP)
         _bg_ok = True
@@ -379,7 +379,7 @@ def start_screen(screen, sounds=None):
     overlay = pygame.Surface((menu_w, menu_h), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 145))
 
-    # ── Title — per-character for wave animation ─────────────────────────────
+    # ── Judul — per-karakter untuk animasi gelombang ─────────────────────────────
     TITLE_TEXT  = "MazeCrawler"
     TITLE_COLOR = (235, 210, 140)
     char_surfs  = [font_lg.render(ch, True, TITLE_COLOR) for ch in TITLE_TEXT]
@@ -388,13 +388,13 @@ def start_screen(screen, sounds=None):
     t_scale     = 0.0
     t_vel       = 0.0
 
-    # Burst constants
-    BURST_CYCLE   = 2.5   # seconds per full cycle (motion + rest)
-    BURST_FRAC    = 0.15  # fraction of cycle that is active (≈0.375s of motion)
-    BURST_STAGGER = 0.04  # cycle-fraction offset between adjacent letters
-    BURST_AMP     = 9     # pixels of upward travel
+    # Konstanta burst
+    BURST_CYCLE   = 2.5   # detik per siklus penuh (gerak + istirahat)
+    BURST_FRAC    = 0.15  # fraksi siklus yang aktif (≈0,375 detik gerak)
+    BURST_STAGGER = 0.04  # offset fraksi-siklus antar huruf yang berdekatan
+    BURST_AMP     = 9     # piksel perjalanan ke atas
 
-    # ── Button layout ────────────────────────────────────────────────────────
+    # ── Tata letak tombol ────────────────────────────────────────────────────────
     BTN_W, BTN_H, BTN_GAP = 280, 58, 14
     TITLE_TO_BTNS          = 32
     total_btns_h           = 3 * BTN_H + 2 * BTN_GAP
@@ -407,7 +407,7 @@ def start_screen(screen, sounds=None):
     btn_offsets = [-float(menu_h)] * 3
     btn_started = [False] * 3
     btn_done    = [False] * 3
-    BTN_STAGGER = 0.75   # seconds between each button starting to drop in
+    BTN_STAGGER = 0.75   # detik antara setiap tombol mulai turun masuk
 
     btns = [
         Btn((cx - BTN_W // 2, 0, BTN_W, BTN_H), lbl, font_md,
@@ -443,7 +443,7 @@ def start_screen(screen, sounds=None):
                 if sounds: sounds.play("click")
                 return "quit"
 
-        # ── Advance background bot ───────────────────────────────────────────
+        # ── Majukan bot latar belakang ───────────────────────────────────────────
         if _bg_ok and _bg and now - _bg["last_step"] >= BG_STEP_DELAY:
             try:
                 kind, r, c, extra = next(_bg["gen"])
@@ -466,7 +466,7 @@ def start_screen(screen, sounds=None):
             except StopIteration:
                 reset_bg()
 
-        # ── Spring title animation (slow ease-out pop) ───────────────────────
+        # ── Animasi judul spring (pop ease-out lambat) ───────────────────────
         if t_scale < 0.999:
             t_vel   = t_vel * 0.2 + (1.0 - t_scale) * 0.045
             t_scale = min(1.0, t_scale + t_vel)
@@ -475,18 +475,18 @@ def start_screen(screen, sounds=None):
             title_settled  = True
             title_settle_t = now
 
-        # ── Button sequential drop-in ────────────────────────────────────────
+        # ── Drop-in tombol berurutan ────────────────────────────────────────
         if title_settled:
             for i in range(3):
                 if now - title_settle_t >= i * BTN_STAGGER:
                     btn_started[i] = True
                 if btn_started[i] and not btn_done[i]:
-                    btn_offsets[i] *= 0.86   # slow ease-out toward 0
+                    btn_offsets[i] *= 0.86   # ease-out lambat menuju 0
                     if abs(btn_offsets[i]) < 1.0:
                         btn_offsets[i] = 0.0
                         btn_done[i]    = True
 
-        # ── Draw ─────────────────────────────────────────────────────────────
+        # ── Gambar ─────────────────────────────────────────────────────────────
         screen.fill(BG)
 
         if _bg_ok and _bg:
@@ -519,7 +519,7 @@ def start_screen(screen, sounds=None):
         clock.tick(FPS)
 
 
-# ── Map selection screen ──────────────────────────────────────────────────────
+# ── Layar pemilihan peta ──────────────────────────────────────────────────────
 def map_select_screen(screen, sounds=None):
     pygame.font.init()
     font_lg = pygame.font.Font("assets/font.ttf", 48)
@@ -528,7 +528,7 @@ def map_select_screen(screen, sounds=None):
     clock   = pygame.time.Clock()
     cx      = SCREEN_W // 2
 
-    # ── Background image (scales to screen, falls back to solid colour) ────────
+    # ── Gambar latar (diskalakan ke layar, kembali ke warna solid jika gagal) ────────
     _bg_img = None
     try:
         _raw    = pygame.image.load(MAP_SELECT_BG).convert()
@@ -611,7 +611,7 @@ def map_select_screen(screen, sounds=None):
         clock.tick(FPS)
 
 
-# ── Results overlay ───────────────────────────────────────────────────────────
+# ── Overlay hasil ───────────────────────────────────────────────────────────
 def draw_results_overlay(surface, status, player, visited_cells,
                          backtrack_count, paths_explored, best_score,
                          screen_w, screen_h):
@@ -640,7 +640,7 @@ def draw_results_overlay(surface, status, player, visited_cells,
 
     row_h   = 56
     panel_w = 650
-    panel_h = 72 + len(stats) * row_h + 52  # title block + rows + divider+hint
+    panel_h = 72 + len(stats) * row_h + 52  # blok judul + baris + pembatas+petunjuk
 
     px = (screen_w - panel_w) // 2
     py = (screen_h - panel_h) // 2
@@ -677,7 +677,7 @@ def draw_results_overlay(surface, status, player, visited_cells,
     surface.blit(hint, hint.get_rect(centerx=px + panel_w // 2, y=y + 14))
 
 
-# ── Game helpers ──────────────────────────────────────────────────────────────
+# ── Pembantu game ──────────────────────────────────────────────────────────────
 def _play_tile_sound(sounds, extra):
     if extra.get("key_picked_up"):   sounds.play("key_pickup")
     elif extra.get("teleported_to"): sounds.play("teleport")
@@ -696,14 +696,14 @@ def make_overlay(tile_size, r, g, b, a):
 
 def build_run(grid_master, tile_size, algo, diff="medium"):
     cfg    = DIFF_CONFIGS[diff]
-    grid   = copy.deepcopy(grid_master)  # working copy — algorithm mutates this directly
+    grid   = copy.deepcopy(grid_master)  # salinan kerja — algoritma memutasi ini secara langsung
     starts = find_tile(grid, "S")
-    goals  = find_tile(grid, "G")        # ordered top-to-bottom, left-to-right from the map file
+    goals  = find_tile(grid, "G")        # diurutkan atas-ke-bawah, kiri-ke-kanan dari file peta
     start  = starts[0] if starts else (1, 1)
     if not goals:
         goals = [(len(grid)-2, len(grid[0])-2)]
     player = Player(start[0], start[1], tile_size, start_hp=cfg["start_hp"])
-    # gen is a paused generator — nothing in the algorithm runs until next(gen) is called
+    # gen adalah generator yang dijeda — tidak ada yang berjalan dalam algoritma sampai next(gen) dipanggil
     if algo == "chained":
         gen = backtracking_chained(grid, player, start, goals, diff=cfg)
     elif algo == "optimize":
@@ -719,14 +719,14 @@ ZOOM_STEP = 4
 
 
 def _camera(player_col, player_row, ts, cols, rows):
-    """Camera top-left in world pixels.
-    Small maps (fit in viewport) are centred; large maps follow the player."""
+    """Sudut kiri atas kamera dalam piksel dunia.
+    Peta kecil (muat di viewport) dipusatkan; peta besar mengikuti pemain."""
     area_h  = SCREEN_H - HUD_HEIGHT
     world_w = cols * ts
     world_h = rows * ts
 
     if world_w <= SCREEN_W:
-        cx = -(SCREEN_W - world_w) // 2   # negative → positive draw offset → centred
+        cx = -(SCREEN_W - world_w) // 2   # negatif → offset gambar positif → dipusatkan
     else:
         cx = player_col * ts + ts // 2 - SCREEN_W // 2
         cx = max(0, min(cx, world_w - SCREEN_W))
@@ -740,13 +740,13 @@ def _camera(player_col, player_row, ts, cols, rows):
     return cx, cy
 
 
-# ── Game loop ─────────────────────────────────────────────────────────────────
+# ── Loop game ─────────────────────────────────────────────────────────────────
 def run_game(screen, map_path, sounds=None):
     grid_master, _ = load_map(map_path)
     cols = len(grid_master[0])
     rows = len(grid_master)
 
-    # Auto-fit: choose ts so the map fills the fixed window as much as possible
+    # Auto-fit: pilih ts agar peta mengisi jendela tetap sebanyak mungkin
     area_h = SCREEN_H - HUD_HEIGHT
     ts_fit = min(SCREEN_W // cols, area_h // rows)
     ts     = max(ZOOM_MIN, min(ZOOM_MAX, ts_fit))
@@ -762,7 +762,7 @@ def run_game(screen, map_path, sounds=None):
     bt_surf    = make_overlay(ts, 255, 120, 60, BT_ALPHA)
     gold_surf  = make_overlay(ts, 255, 215, 40, 110)
 
-    # Default algo: map3 filename → optimize, multi-goal → chained, else classic
+    # Algo default: nama file map3 → optimize, banyak tujuan → chained, selainnya classic
     goals_init = find_tile(grid_master, "G")
     if "map3" in os.path.basename(map_path).lower():
         algo = "optimize"
@@ -782,10 +782,10 @@ def run_game(screen, map_path, sounds=None):
     renderer = MapRenderer(grid, ts, sprites=sprites)
     hud      = HUD(SCREEN_W, SCREEN_H)
 
-    # Visual tracking — separate from the algorithm's internal visited set.
-    # visited_cells: every cell the bot has stepped on (blue overlay)
-    # backtrack_cells: cells the bot backed out of (orange overlay)
-    # solution_path: stack of the current route from start to player; mirrors step_seq during search
+    # Pelacakan visual — terpisah dari set visited internal algoritma.
+    # visited_cells: setiap sel yang telah diinjak bot (overlay biru)
+    # backtrack_cells: sel yang ditinggalkan bot saat mundur (overlay oranye)
+    # solution_path: stack rute saat ini dari start ke pemain; mencerminkan step_seq selama pencarian
     visited_cells    = {(player.row, player.col)}
     backtrack_cells  = set()
     solution_path    = [(player.row, player.col)]
@@ -887,40 +887,40 @@ def run_game(screen, map_path, sounds=None):
             time.sleep(0.12)
 
         if not finished and not player.is_frozen():
-            # Backtracking runs at half the normal delay so dead-end retreats feel snappy
+            # Mundur berjalan dengan setengah penundaan normal agar mundur dari jalan buntu terasa responsif
             delay = speed_dd.delay * (0.5 if status == "backtracking" else 1.0)
-            # Time gate — only advance the algorithm once per delay interval.
-            # Frames in between just redraw the current state without moving the bot.
+            # Gerbang waktu — hanya majukan algoritma sekali per interval penundaan.
+            # Frame di antaranya hanya menggambar ulang status saat ini tanpa menggerakkan bot.
             if now - last_step >= delay:
                 try:
-                    # Advance the algorithm exactly one step.
-                    # Each next() call resumes the generator until the next yield in algorithm.py.
+                    # Majukan algoritma tepat satu langkah.
+                    # Setiap panggilan next() melanjutkan generator hingga yield berikutnya di algorithm.py.
                     kind, r, c, extra = next(gen)
                     last_step = time.time()
                     if kind == "move":
-                        # Bot stepped onto a new cell during search
+                        # Bot menginjak sel baru selama pencarian
                         status = "exploring"
                         player.is_active    = True
                         player.is_backtrack = False
                         visited_cells.add((r, c))
-                        backtrack_cells.discard((r, c))  # un-orange it if previously backtracked
-                        solution_path.append((r, c))     # push onto current path stack
+                        backtrack_cells.discard((r, c))  # hilangkan warna oranye jika sebelumnya mundur
+                        solution_path.append((r, c))     # dorong ke stack jalur saat ini
                         renderer.update_grid(grid)
                         if extra.get("freeze_frames", 0) > 0:
                             player.freeze_frames_left = extra["freeze_frames"]
                         _play_tile_sound(sounds, extra)
                     elif kind == "backtrack":
-                        # Bot backing out of a dead end
+                        # Bot mundur dari jalan buntu
                         status = "backtracking"
                         player.is_active    = True
                         player.is_backtrack = True
                         if len(solution_path) > 1:
-                            backtrack_cells.add(solution_path[-1])  # mark the dead-end cell orange
-                            solution_path.pop()                      # pop the path stack
+                            backtrack_cells.add(solution_path[-1])  # tandai sel jalan buntu dengan oranye
+                            solution_path.pop()                      # pop stack jalur
                         backtrack_count += 1
                         renderer.update_grid(grid)
                     elif kind == "segment_found":
-                        # Chained algo only — one goal reached, more remain
+                        # Hanya algo chained — satu tujuan tercapai, masih ada lagi
                         active_goal_idx += 1
                         status = "checkpoint"
                         player.is_active    = True
@@ -929,23 +929,23 @@ def run_game(screen, map_path, sounds=None):
                         backtrack_cells.discard((r, c))
                         sounds.play("goal")
                     elif kind == "candidate":
-                        # Optimize algo only — a complete path was scored (may or may not be best)
+                        # Hanya algo optimize — sebuah jalur lengkap telah dinilai (bisa jadi terbaik atau tidak)
                         status = "candidate"
                         paths_explored += 1
                         if extra.get("is_best"):
                             best_score = extra["score"]
                     elif kind == "replay_start":
-                        # Search phase is over — wipe the exploration trail and start the clean replay
+                        # Fase pencarian selesai — hapus jejak penjelajahan dan mulai replay bersih
                         status = "replaying"
                         best_score      = extra.get("score")
-                        visited_cells   = {(r, c)}   # reset to just the start position
+                        visited_cells   = {(r, c)}   # reset ke hanya posisi start
                         backtrack_cells = set()
                         solution_path   = [(r, c)]
                         player.is_active    = True
                         player.is_backtrack = False
                         renderer.update_grid(grid)
                     elif kind == "replay":
-                        # Bot re-walking the found path — painted gold via solution_path overlay
+                        # Bot berjalan ulang di jalur yang ditemukan — dicat emas melalui overlay solution_path
                         status = "replaying"
                         player.is_active    = True
                         player.is_backtrack = False
@@ -957,7 +957,7 @@ def run_game(screen, map_path, sounds=None):
                             player.freeze_frames_left = extra["freeze_frames"]
                         _play_tile_sound(sounds, extra)
                     elif kind == "found":
-                        # Algorithm fully done — goal reached and replay complete
+                        # Algoritma selesai sepenuhnya — tujuan tercapai dan replay selesai
                         status = "found"
                         player.is_active    = False
                         player.is_backtrack = False
@@ -972,7 +972,7 @@ def run_game(screen, map_path, sounds=None):
                         finished     = True
                         show_overlay = True
                 except StopIteration:
-                    # Generator exhausted without yielding found/no_solution — treat as no solution
+                    # Generator habis tanpa yield found/no_solution — perlakukan sebagai tidak ada solusi
                     if status not in ("found", "no_solution"):
                         status = "no_solution"
                     finished     = True
@@ -980,7 +980,7 @@ def run_game(screen, map_path, sounds=None):
 
         game_screen.fill((0, 0, 0))
 
-        # Clip all tile/trail/player drawing to the game area (above HUD)
+        # Batasi semua gambar tile/jejak/pemain ke area game (di atas HUD)
         game_area_h = SCREEN_H - HUD_HEIGHT
         game_screen.set_clip(pygame.Rect(0, 0, SCREEN_W, game_area_h))
 
@@ -1026,7 +1026,7 @@ def run_game(screen, map_path, sounds=None):
         clock.tick(FPS)
 
 
-# ── Entry ─────────────────────────────────────────────────────────────────────
+# ── Titik masuk ─────────────────────────────────────────────────────────────────
 def main():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
@@ -1036,11 +1036,11 @@ def main():
     sounds.play_bgm()
 
     while True:
-        # Always restore menu-sized window when returning
+        # Selalu pulihkan jendela ukuran menu saat kembali
         screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
 
         action = start_screen(screen, sounds)
-        screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))  # restore after menu resize
+        screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))  # pulihkan setelah pengubahan ukuran menu
 
         if action == "quit":
             break
@@ -1051,12 +1051,12 @@ def main():
             result = run_game(screen, map_path, sounds=sounds)
             if result == "quit":
                 break
-            # result == "menu" → loop back to start screen
+            # result == "menu" → kembali ke layar start
         elif action == "editor":
             result = run_editor(screen, sounds=sounds)
             if result == "quit":
                 break
-            # result == "back" → loop back to start screen
+            # result == "back" → kembali ke layar start
 
     sounds.stop_bgm()
     pygame.quit()

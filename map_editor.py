@@ -1,12 +1,20 @@
 """
-map_editor.py
-Self-contained map editor with its own event loop.
-Called from main.py via run_editor().
+map_editor.py — editor peta penggambaran tile di dalam game.
 
-Screens:
-  1. Map List  — shows existing maps + "New Map" button
-  2. New Map   — input name + size (WxH), confirm creates the .txt
-  3. Editor    — tile palette bottom, grid canvas, Save button
+Dipanggil dari main.py melalui run_editor(). Mengelola tiga layar secara internal:
+  1. MapListScreen  — menampilkan daftar file .txt yang ada di maps/ + tombol "Add New Map"
+  2. NewMapScreen   — input teks untuk nama peta dan dimensi grid; divalidasi sebelum dibuat
+  3. EditorScreen   — kanvas grid penuh dengan palet tile, zoom/pan, dan simpan
+
+Transisi layar ditangani oleh loop while di run_editor(); setiap kelas layar
+menjalankan event loop-nya sendiri dan mengembalikan string aksi saat selesai.
+
+Kontrol di editor:
+  Klik Kiri    — gambar tile yang dipilih
+  Klik Kanan   — hapus ke lantai ('.')
+  Scroll       — zoom masuk/keluar, berpusat pada kursor
+  Seret Tengah — geser kanvas
+  Ctrl+S       — simpan
 """
 
 import pygame
@@ -15,7 +23,10 @@ import glob
 from sprite_loader import load_sprites
 from tiles import get_color
 
-# ── Tile palette (no ice) ────────────────────────────────────────────────────
+# ── Palet tile ─────────────────────────────────────────────────────────────
+# Setiap entri berisi (simbol, nama_tampilan, warna_cadangan).
+# Daftar ini menggerakkan strip palet di bagian bawah editor dan
+# logika rendering swatch di EditorScreen._build_palette().
 PALETTE = [
     ("#", "Wall",         (30,  30,  35)),
     ("%", "Broken Wall",  (80,  55,  30)),
@@ -30,23 +41,23 @@ PALETTE = [
     ("G", "Goal",         (240,200,  40)),
 ]
 
-MAPS_DIR    = "maps"
-MAPS_EXT    = "*.txt"
+MAPS_DIR = "maps"
+MAPS_EXT = "*.txt"
 
-# ── Background images (one per screen, falls back to solid colour if missing) ─
-MAP_LIST_BG = "assets/bg2.jpg"    # map editor list screen
-NEW_MAP_BG  = "assets/bg2.jpg"    # new map dialog screen
+# Gambar latar untuk layar daftar dan layar peta baru; mundur diam ke warna solid.
+MAP_LIST_BG = "assets/bg2.jpg"
+NEW_MAP_BG  = "assets/bg2.jpg"
 
 
 def _load_bg(path, w, h):
-    """Load and scale a PNG background; returns None silently if missing."""
+    """Muat dan skalakan gambar latar ke (w, h). Mengembalikan None secara diam-diam jika file tidak ditemukan."""
     try:
         raw = pygame.image.load(path).convert()
         return pygame.transform.smoothscale(raw, (w, h))
     except Exception:
         return None
 
-# ── Colours (Dungeon Gold theme) ─────────────────────────────────────────────
+# ── Warna (tema Dungeon Gold) ─────────────────────────────────────────────
 BG         = (20,  15,  10)
 PANEL_BG   = (28,  20,  12)
 BORDER     = (120,  85,  25)
@@ -69,9 +80,10 @@ BG_CANVAS  = (18,  18,  24)
 FPS = 60
 
 
-# ── Tiny UI helpers ──────────────────────────────────────────────────────────
+# ── Widget UI yang dapat digunakan ulang ───────────────────────────────────────────────────────
 
 class Button:
+    """Persegi panjang yang bisa diklik dengan label teks dan sorotan hover."""
     def __init__(self, rect, label, color=BTN_BG, hover_color=BTN_HOV,
                  text_color=TEXT, font=None, radius=6):
         self.rect        = pygame.Rect(rect)
@@ -92,29 +104,33 @@ class Button:
             surface.blit(lbl, lbl.get_rect(center=self.rect.center))
 
     def update(self, mouse_pos):
+        """Panggil setiap frame dengan posisi mouse saat ini untuk melacak status hover."""
         self._hovered = self.rect.collidepoint(mouse_pos)
 
     def is_clicked(self, event):
+        """Mengembalikan True jika event ini adalah klik kiri di dalam tombol."""
         return (event.type == pygame.MOUSEBUTTONDOWN and
                 event.button == 1 and
                 self.rect.collidepoint(event.pos))
 
 
 class TextInput:
+    """Bidang input teks satu baris. Mengklik mengaktifkannya; mengetik menambahkan karakter."""
     def __init__(self, rect, placeholder="", font=None, max_chars=30):
         self.rect        = pygame.Rect(rect)
         self.placeholder = placeholder
         self.font        = font
         self.max_chars   = max_chars
         self.text        = ""
-        self.active      = False
+        self.active      = False   # True ketika bidang memiliki fokus keyboard
 
     def handle_event(self, event):
+        # Mengklik di mana saja mengatur fokus; mengklik di luar menghapusnya
         if event.type == pygame.MOUSEBUTTONDOWN:
             self.active = self.rect.collidepoint(event.pos)
         if event.type == pygame.KEYDOWN and self.active:
             if event.key == pygame.K_BACKSPACE:
-                self.text = self.text[:-1]
+                self.text = self.text[:-1]   # hapus karakter terakhir
             elif event.key not in (pygame.K_RETURN, pygame.K_TAB):
                 if len(self.text) < self.max_chars:
                     self.text += event.unicode
@@ -125,12 +141,13 @@ class TextInput:
         bdr_col = ACCENT if self.active else INPUT_BDR
         pygame.draw.rect(surface, bdr_col, self.rect, 1, border_radius=4)
         if self.font:
+            # Tampilkan teks placeholder dalam warna redup saat kosong
             display = self.text if self.text else self.placeholder
             col     = TEXT if self.text else TEXT_DIM
             lbl     = self.font.render(display, True, col)
             surface.blit(lbl, (self.rect.x + 8,
                                 self.rect.centery - lbl.get_height() // 2))
-            # Cursor
+            # Gambar kursor bergaya berkedip setelah teks saat aktif
             if self.active and self.text:
                 cx = self.rect.x + 8 + lbl.get_width() + 2
                 cy = self.rect.centery
@@ -138,7 +155,7 @@ class TextInput:
                                  (cx, cy - 8), (cx, cy + 8), 1)
 
 
-# ── Map list screen ──────────────────────────────────────────────────────────
+# ── Layar 1: Daftar peta ───────────────────────────────────────────────────────
 
 class MapListScreen:
     def __init__(self, surface, fonts, sounds=None):
@@ -152,7 +169,6 @@ class MapListScreen:
     def _build(self):
         f  = self.fonts
         cx = self.W // 2
-
         self.btn_new = Button(
             (cx - 140, self.H - 90, 280, 52),
             "Add New Map",
@@ -167,9 +183,9 @@ class MapListScreen:
         self._refresh()
 
     def _refresh(self):
+        """Pindai ulang direktori maps/ dan bangun ulang daftar tombol per peta."""
         os.makedirs(MAPS_DIR, exist_ok=True)
         self.maps = sorted(glob.glob(os.path.join(MAPS_DIR, MAPS_EXT)))
-        # Row buttons for each map
         f  = self.fonts
         cx = self.W // 2
         self.map_btns = []
@@ -179,6 +195,11 @@ class MapListScreen:
             self.map_btns.append((Button(r, name, font=f["md"]), path))
 
     def run(self):
+        """
+        Loop event untuk layar daftar peta.
+        Mengembalikan tuple: ("quit"|"back"|"new"|"edit", path_or_None)
+        run_editor() membaca elemen pertama untuk menentukan layar berikutnya.
+        """
         clock = pygame.time.Clock()
         while True:
             mouse = pygame.mouse.get_pos()
@@ -201,7 +222,7 @@ class MapListScreen:
                 for btn, path in self.map_btns:
                     if btn.is_clicked(event):
                         if self.sounds: self.sounds.play("click")
-                        return ("edit", path)
+                        return ("edit", path)   # kirim path ke run_editor untuk EditorScreen
 
             self._draw()
             clock.tick(FPS)
@@ -213,11 +234,11 @@ class MapListScreen:
         else:
             s.fill(BG)
 
-        # Title
+        # Judul
         title = self.fonts["lg"].render("Map Editor", True, TEXT)
         s.blit(title, title.get_rect(centerx=self.W // 2, y=60))
 
-        # Map list
+        # Daftar peta
         if not self.map_btns:
             msg = self.fonts["sm"].render("No maps found in /maps folder.",
                                           True, TEXT_DIM)
@@ -231,7 +252,7 @@ class MapListScreen:
         pygame.display.flip()
 
 
-# ── New map dialog ────────────────────────────────────────────────────────────
+# ── Layar 2: Dialog peta baru ──────────────────────────────────────────────────
 
 class NewMapScreen:
     def __init__(self, surface, fonts, sounds=None):
@@ -274,7 +295,11 @@ class NewMapScreen:
         )
 
     def run(self):
-        clock = pygame.time.Clock()
+        """
+        Loop event untuk dialog peta baru.
+        Mengembalikan ("quit"|"back", ...) atau ("created", name, cols, rows) jika berhasil.
+        """
+        clock  = pygame.time.Clock()
         inputs = [self.inp_name, self.inp_w, self.inp_h]
 
         while True:
@@ -303,9 +328,15 @@ class NewMapScreen:
             clock.tick(FPS)
 
     def _validate(self):
+        """
+        Validasi ketiga bidang input sebelum membuat peta.
+        Mengatur self.error dengan pesan yang ditampilkan ke pengguna jika ada kegagalan.
+        Mengembalikan (name, cols, rows) jika berhasil, None jika gagal.
+        """
         name = self.inp_name.text.strip()
         if not name:
             self.error = "Map name cannot be empty."; return None
+        # Hanya izinkan karakter yang aman untuk sistem file dalam nama file
         if not name.replace("_","").replace("-","").isalnum():
             self.error = "Name: letters, numbers, _ and - only."; return None
 
@@ -319,6 +350,7 @@ class NewMapScreen:
         except ValueError:
             self.error = "Width and height must be numbers."; return None
 
+        # Terapkan batas ukuran yang wajar agar peta tetap dapat digunakan
         if not (3 <= cols <= 60 and 3 <= rows <= 40):
             self.error = "Width: 3–60   Height: 3–40"; return None
 
@@ -336,7 +368,7 @@ class NewMapScreen:
         title = self.fonts["lg"].render("New Map", True, TEXT)
         s.blit(title, title.get_rect(centerx=cx, y=160))
 
-        # Labels
+        # Label
         for text, y in [("Map name", 252), ("Size  (W × H)", 352)]:
             lbl = self.fonts["sm"].render(text, True, TEXT_DIM)
             s.blit(lbl, (cx - 160, y))
@@ -357,15 +389,15 @@ class NewMapScreen:
         pygame.display.flip()
 
 
-# ── Editor screen ─────────────────────────────────────────────────────────────
+# ── Layar 3: Kanvas editor ───────────────────────────────────────────────────
 
-PALETTE_H    = 120     # height of palette panel at bottom
-TOP_BAR_H    = 60      # height of top bar (map name + buttons)
-MIN_TILE     = 8
-MAX_TILE     = 80
-PAL_ITEM_W   = 120     # 11 tiles × 120 = 1320 px, centred in 1440
-PAL_ITEM_H   = 100
-PAL_SPRITE_SIZE = 64   # larger sprites now that palette is taller
+PALETTE_H       = 120   # tinggi strip palet tile di bagian bawah
+TOP_BAR_H       = 60    # tinggi bilah atas (nama peta, tombol simpan, tombol kembali)
+MIN_TILE        = 8     # ukuran tile minimum saat di-zoom keluar
+MAX_TILE        = 80    # ukuran tile maksimum saat di-zoom masuk
+PAL_ITEM_W      = 120   # 11 item palet × 120 px = 1320 px, dipusatkan di 1440
+PAL_ITEM_H      = 100
+PAL_SPRITE_SIZE = 64    # ukuran sprite yang dirender di dalam setiap swatch palet
 
 
 class EditorScreen:
@@ -374,33 +406,36 @@ class EditorScreen:
         self.fonts    = fonts
         self.sounds   = sounds
         self.map_path = map_path
-        self.grid     = grid          # list[list[str]], mutable
+        self.grid     = grid          # list[list[str]] yang bisa diubah — langsung dilukis di tempat
         self.W, self.H = surface.get_size()
 
         self.rows = len(grid)
         self.cols = len(grid[0])
 
-        # Compute tile size to fit canvas area (between top bar and palette)
+        # Sesuaikan otomatis: pilih ukuran tile terbesar yang menampilkan seluruh grid
+        # di area kanvas (antara bilah atas dan strip palet).
         canvas_h = self.H - PALETTE_H - TOP_BAR_H
         ts_by_w  = self.W // self.cols
         ts_by_h  = canvas_h // self.rows
         self.ts  = max(MIN_TILE, min(MAX_TILE, ts_by_w, ts_by_h))
 
-        # Canvas offset (centre the grid inside the canvas band)
+        # off_x/off_y adalah offset piksel sudut kiri atas grid.
+        # Dimulai dari tengah; pan dan zoom keduanya memperbarui nilai-nilai ini.
         self.off_x = (self.W - self.cols * self.ts) // 2
         self.off_y = TOP_BAR_H + max(0, (canvas_h - self.rows * self.ts) // 2)
 
-        self._pan_start  = None   # middle-mouse pan anchor
-        self._pan_origin = (0, 0)
+        self._pan_start  = None    # menyimpan posisi mouse awal saat seret tengah dimulai
+        self._pan_origin = (0, 0)  # menyimpan off_x/off_y di awal gerakan pan
 
-        self.selected_tile = "#"
-        self.painting      = False    # mouse held down
+        self.selected_tile = "#"   # tile yang sedang aktif di palet
+        self.painting      = False # True saat tombol mouse kiri ditahan
         self.error_msg     = ""
         self.saved_msg     = ""
-        self.saved_timer   = 0
+        self.saved_timer   = 0     # hitung mundur (ms) untuk pesan kilat "Tersimpan!"
 
-        self.sprites     = load_sprites(self.ts)          # canvas tile sprites
-        self.pal_sprites = load_sprites(PAL_SPRITE_SIZE)  # palette swatch sprites
+        # Dua set sprite terpisah: satu diskalakan ke ukuran tile kanvas, satu untuk swatch palet.
+        self.sprites     = load_sprites(self.ts)
+        self.pal_sprites = load_sprites(PAL_SPRITE_SIZE)
 
         self._build_palette()
         self._build_buttons()
@@ -428,17 +463,22 @@ class EditorScreen:
             "← Back", font=f["sm"]
         )
 
-    # ── Zoom / pan helpers ────────────────────────────────────────────────────
+    # ── Pembantu zoom / pan ────────────────────────────────────────────────────
+
     def _clamp_offsets(self):
-        margin   = 60
-        grid_w   = self.cols * self.ts
-        grid_h   = self.rows * self.ts
+        """
+        Cegah pengguna dari menggeser grid sepenuhnya keluar layar.
+        Selalu menjaga setidaknya `margin` piksel dari grid terlihat di setiap tepi.
+        """
+        margin     = 60
+        grid_w     = self.cols * self.ts
+        grid_h     = self.rows * self.ts
         canvas_bot = self.H - PALETTE_H
         self.off_x = max(margin - grid_w, min(self.W - margin, self.off_x))
         self.off_y = max(TOP_BAR_H + margin - grid_h,
                          min(canvas_bot - margin, self.off_y))
 
-    # ── Main loop ─────────────────────────────────────────────────────────────
+    # ── Loop utama ─────────────────────────────────────────────────────────────
     def run(self):
         clock = pygame.time.Clock()
         while True:
@@ -463,25 +503,25 @@ class EditorScreen:
                     if self.sounds: self.sounds.play("click")
                     self._save()
 
-                # Palette click
+                # Klik palet
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     for r, sym, label, col in self.pal_rects:
                         if r.collidepoint(event.pos):
                             if self.sounds: self.sounds.play("click")
                             self.selected_tile = sym
 
-                # Start / stop painting
+                # Mulai / hentikan menggambar
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     self.painting = True
                     self._try_paint(event.pos)
                 if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     self.painting = False
 
-                # Right-click erases to floor
+                # Klik kanan menghapus ke lantai
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
                     self._try_paint(event.pos, force_sym=".")
 
-                # Middle-mouse drag to pan
+                # Seret mouse tengah untuk pan
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 2:
                     self._pan_start  = event.pos
                     self._pan_origin = (self.off_x, self.off_y)
@@ -494,7 +534,7 @@ class EditorScreen:
                     self.off_y = self._pan_origin[1] + dy
                     self._clamp_offsets()
 
-                # Scroll wheel to zoom (centred on mouse cursor)
+                # Roda gulir untuk zoom (berpusat pada kursor mouse)
                 if event.type == pygame.MOUSEWHEEL:
                     mx, my  = pygame.mouse.get_pos()
                     old_ts  = self.ts
@@ -511,50 +551,59 @@ class EditorScreen:
             if self.painting:
                 self._try_paint(pygame.mouse.get_pos())
 
-            # Saved message timer
+            # Timer pesan tersimpan
             if self.saved_timer > 0:
                 self.saved_timer -= clock.get_time()
 
             self._draw()
             clock.tick(FPS)
 
-    # ── Painting ──────────────────────────────────────────────────────────────
+    # ── Menggambar ──────────────────────────────────────────────────────────────
+
     def _try_paint(self, pos, force_sym=None):
+        """
+        Ubah posisi piksel layar menjadi sel grid dan gambar di sana.
+        force_sym mengganti pilihan palet (digunakan untuk penghapusan klik kanan).
+        Sel tepi (baris 0, baris terakhir, kolom 0, kolom terakhir) dilindungi —
+        peta harus selalu memiliki batas dinding yang lengkap.
+        """
         px, py = pos
         col = (px - self.off_x) // self.ts
         row = (py - self.off_y) // self.ts
 
+        # Di luar batas grid — abaikan
         if not (0 <= row < self.rows and 0 <= col < self.cols):
             return
-        # Don't let user paint over the outer border wall
+        # Lindungi batas luar agar peta selalu sepenuhnya tertutup
         if row == 0 or row == self.rows-1 or col == 0 or col == self.cols-1:
             return
-        # Don't paint in palette or top bar UI areas
+        # Abaikan klik yang jatuh di strip palet atau bilah atas
         if py >= self.H - PALETTE_H or py < TOP_BAR_H:
             return
 
         sym = force_sym if force_sym else self.selected_tile
-        # Don't place outer wall symbol inside
         self.grid[row][col] = sym
 
-    # ── Save ──────────────────────────────────────────────────────────────────
+    # ── Simpan ──────────────────────────────────────────────────────────────────
+
     def _save(self):
+        """Tulis grid saat ini ke file peta. Menampilkan kilat "Tersimpan!" selama 2 detik."""
         os.makedirs(MAPS_DIR, exist_ok=True)
         try:
             with open(self.map_path, "w") as f:
                 for row in self.grid:
-                    f.write("".join(row) + "\n")
-            self.saved_timer = 2000
+                    f.write("".join(row) + "\n")   # setiap baris adalah satu baris karakter
+            self.saved_timer = 2000   # durasi kilat 2000 ms
             self.error_msg   = ""
         except Exception as e:
             self.error_msg = str(e)
 
-    # ── Draw ──────────────────────────────────────────────────────────────────
+    # ── Gambar ──────────────────────────────────────────────────────────────────
     def _draw(self):
         s = self.surface
         s.fill(BG_CANVAS)
 
-        # ── Grid (clipped to canvas band) ─────────────────────────────────────
+        # ── Grid (dipotong ke area kanvas) ─────────────────────────────────────
         ts  = self.ts
         ox  = self.off_x
         oy  = self.off_y
@@ -582,7 +631,7 @@ class EditorScreen:
                         s.blit(lbl, lbl.get_rect(center=(x + ts // 2, y + ts // 2)))
                 pygame.draw.rect(s, GRID_LINE, (x, y, ts, ts), 1)
 
-        # Hover highlight
+        # Sorotan hover
         mx, my = pygame.mouse.get_pos()
         hc = (mx - ox) // ts
         hr = (my - oy) // ts
@@ -596,7 +645,7 @@ class EditorScreen:
 
         s.set_clip(None)
 
-        # ── Palette panel ─────────────────────────────────────────────────────
+        # ── Panel palet ─────────────────────────────────────────────────────
         pal_y = self.H - PALETTE_H
         pygame.draw.rect(s, BG_CANVAS, (0, pal_y, self.W, PALETTE_H))
         pygame.draw.line(s, BORDER, (0, pal_y), (self.W, pal_y), 1)
@@ -604,14 +653,14 @@ class EditorScreen:
         pal_tile_sprites = self.pal_sprites.get("tiles", {}) if self.pal_sprites else {}
         pal_tile_anims   = self.pal_sprites.get("tile_anims", {}) if self.pal_sprites else {}
         for rect, sym, label, col in self.pal_rects:
-            # Swatch background
+            # Latar swatch
             pygame.draw.rect(s, col, rect, border_radius=4)
             if sym == self.selected_tile:
                 pygame.draw.rect(s, SEL_BORDER, rect, 3, border_radius=4)
             else:
                 pygame.draw.rect(s, BORDER, rect, 1, border_radius=4)
 
-            # Sprite or symbol glyph
+            # Sprite atau glyph simbol
             if sym in pal_tile_anims:
                 spr = pal_tile_anims[sym][0]
                 cx  = rect.x + (rect.width - PAL_SPRITE_SIZE) // 2
@@ -623,10 +672,10 @@ class EditorScreen:
                 sym_lbl = self.fonts["md"].render(sym, True, (255, 255, 255))
                 s.blit(sym_lbl, sym_lbl.get_rect(centerx=rect.centerx, y=rect.y + 6))
 
-            # Name label — dark pill clamped to tile width, white text
+            # Label nama — pil gelap dibatasi lebar tile, teks putih
             name_lbl = self.fonts["xs"].render(label, True, (240, 240, 240))
             lw, lh   = name_lbl.get_size()
-            pill_w   = min(lw + 8, rect.width)          # never wider than swatch
+            pill_w   = min(lw + 8, rect.width)          # tidak pernah lebih lebar dari swatch
             pill     = pygame.Surface((pill_w, lh + 2), pygame.SRCALPHA)
             pill.fill((0, 0, 0, 150))
             pill_x   = rect.centerx - pill_w // 2
@@ -637,7 +686,7 @@ class EditorScreen:
             s.blit(name_lbl, (pill_x + 4, pill_y + 1))
             s.set_clip(clip_before)
 
-        # ── Top bar ───────────────────────────────────────────────────────────
+        # ── Bilah atas ───────────────────────────────────────────────────────────
         pygame.draw.rect(s, BG_CANVAS, (0, 0, self.W, TOP_BAR_H))
         pygame.draw.line(s, BORDER, (0, TOP_BAR_H), (self.W, TOP_BAR_H), 1)
 
@@ -654,7 +703,7 @@ class EditorScreen:
         self.btn_save.draw(s)
         self.btn_back.draw(s)
 
-        # Saved / error feedback
+        # Umpan balik tersimpan / kesalahan
         if self.saved_timer > 0:
             msg = self.fonts["sm"].render("Saved!", True, (80, 220, 80))
             s.blit(msg, msg.get_rect(right=self.W - 160, centery=TOP_BAR_H // 3))
@@ -665,23 +714,25 @@ class EditorScreen:
         pygame.display.flip()
 
 
-# ── Grid factory ─────────────────────────────────────────────────────────────
+# ── Pembantu pembuatan grid ──────────────────────────────────────────────────────
 
 def make_empty_grid(cols: int, rows: int) -> list:
-    """All # outer border, floor inside."""
+    """
+    Buat grid kosong yang seluruhnya diisi dengan dinding '#'.
+    Pengguna memulai dengan blok solid dan melukis jalur terbuka,
+    yang lebih aman daripada grid terbuka yang mungkin tidak memiliki batas.
+    """
     grid = []
     for r in range(rows):
         row = []
         for c in range(cols):
-            if r == 0 or r == rows-1 or c == 0 or c == cols-1:
-                row.append("#")
-            else:
-                row.append("#")   # start all-# as requested, user paints from there
+            row.append("#")   # semua sel dimulai sebagai dinding — pengguna mengukir labirin
         grid.append(row)
     return grid
 
 
 def load_grid(path: str) -> list:
+    """Baca file peta .txt menjadi daftar 2D, menghapus baris kosong dan mengisi baris hingga lebar yang sama."""
     with open(path, "r") as f:
         lines = [line.rstrip("\n") for line in f]
     while lines and not lines[0].strip(): lines.pop(0)
@@ -691,21 +742,29 @@ def load_grid(path: str) -> list:
 
 
 def save_grid(path: str, grid: list):
+    """Tulis grid 2D kembali ke file .txt, satu baris per baris."""
     os.makedirs(MAPS_DIR, exist_ok=True)
     with open(path, "w") as f:
         for row in grid:
             f.write("".join(row) + "\n")
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# ── Titik masuk ───────────────────────────────────────────────────────────────
 
 def run_editor(surface, sounds=None):
     """
-    Main entry called from main.py.
-    Manages screen transitions internally.
-    Returns when user backs out to main menu.
+    Titik masuk editor tingkat atas yang dipanggil dari main.py.
+    Menjalankan loop luar yang berpindah antara tiga layar editor.
+    Mengembalikan "quit" atau "back" untuk memberi sinyal ke main.py apa yang harus dilakukan.
+
+    Alur transisi layar:
+      list  → "new"     → new  → "created" → editor
+      list  → "edit"    → editor
+      editor → "back"   → list
+      any   → "quit"    → keluar ke OS
     """
     pygame.font.init()
+    # Set font bersama yang diteruskan ke setiap layar agar semuanya menggunakan jenis huruf yang sama.
     fonts = {
         "lg": pygame.font.Font("assets/font.ttf", 36),
         "md": pygame.font.Font("assets/font.ttf", 22),
@@ -723,6 +782,7 @@ def run_editor(surface, sounds=None):
             if action == "back":   return "back"
             if action == "new":    screen_name = "new"
             if action == "edit":
+                # Muat peta yang dipilih dan langsung masuk ke editor
                 path = result[1]
                 grid = load_grid(path)
                 screen_name = "editor"
@@ -735,10 +795,11 @@ def run_editor(surface, sounds=None):
             if action == "quit":  return "quit"
             if action == "back":  screen_name = "list"
             if action == "created":
+                # Buat grid kosong, simpan segera, lalu buka editor
                 _, name, cols, rows = result
                 path = os.path.join(MAPS_DIR, name + ".txt")
                 grid = make_empty_grid(cols, rows)
-                save_grid(path, grid)
+                save_grid(path, grid)   # tulis file agar ada sebelum pengeditan
                 editor_path = path
                 editor_grid = grid
                 screen_name = "editor"
@@ -746,4 +807,4 @@ def run_editor(surface, sounds=None):
         elif screen_name == "editor":
             result = EditorScreen(surface, fonts, editor_path, editor_grid, sounds=sounds).run()
             if result == "quit": return "quit"
-            if result == "back": screen_name = "list"
+            if result == "back": screen_name = "list"   # kembali ke daftar peta setelah pengeditan
