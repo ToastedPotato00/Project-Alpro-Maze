@@ -37,7 +37,7 @@ STEP_COST = {
     "R": 1,
     "T": 1,
     "t": 1,
-    "K": 0,   # mengambil kunci tidak mengeluarkan langkah
+    "K": 1,
     "%": 1,
     "S": 0,
     "G": 0,
@@ -158,5 +158,4 @@ def apply_tile_effect(symbol: str, player, grid, teleporter_map: dict, diff=None
         player.keys += 1
         grid[player.row][player.col] = "."
         result["key_picked_up"] = True
-        result["step_cost"] = 0   # mengambil kunci gratis
     return result
