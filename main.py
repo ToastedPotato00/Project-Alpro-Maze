@@ -329,7 +329,7 @@ def start_screen(screen, sounds=None):
     font_md = pygame.font.Font("assets/font.ttf", 22)
     clock   = pygame.time.Clock()
 
-    # ── Hitung ukuran jendela dari peta (sesuaikan tinggi, lebar mengikuti) ──────────
+    # ── Hitung ukuran windows dari peta (sesuaikan tinggi, lebar mengikuti) ──────────
     try:
         grid_master_bg, _ = load_map(MENU_BG_MAP)
         _bg_ok = True
@@ -677,7 +677,6 @@ def draw_results_overlay(surface, status, player, visited_cells,
     surface.blit(hint, hint.get_rect(centerx=px + panel_w // 2, y=y + 14))
 
 
-# ── Pembantu game ──────────────────────────────────────────────────────────────
 def _play_tile_sound(sounds, extra):
     if extra.get("key_picked_up"):   sounds.play("key_pickup")
     elif extra.get("teleported_to"): sounds.play("teleport")
@@ -785,7 +784,7 @@ def run_game(screen, map_path, sounds=None):
     # Pelacakan visual — terpisah dari set visited internal algoritma.
     # visited_cells: setiap sel yang telah diinjak bot (overlay biru)
     # backtrack_cells: sel yang ditinggalkan bot saat mundur (overlay oranye)
-    # solution_path: stack rute saat ini dari start ke pemain; mencerminkan step_seq selama pencarian
+    # solution_path: stack rute saat ini dari start ke pemain; sama seperti step_seq selama pencarian
     visited_cells    = {(player.row, player.col)}
     backtrack_cells  = set()
     solution_path    = [(player.row, player.col)]
@@ -802,7 +801,7 @@ def run_game(screen, map_path, sounds=None):
         now             = time.time()
         cam_x, cam_y   = _camera(player.col, player.row, ts, cols, rows)
         offset          = (-cam_x, -cam_y)
-
+        # Pengecekan even pygamne
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return "quit"
@@ -818,6 +817,7 @@ def run_game(screen, map_path, sounds=None):
                         speed_dd.open      = False
                     else:
                         return "menu"
+                # Saat restart maka build ulang
                 if event.key == pygame.K_r and not dropdown.open and not diff_dropdown.open and not speed_dd.open:
                     grid, player, gen, goals = build_run(grid_master, ts, algo, diff)
                     renderer.update_grid(grid)
@@ -832,6 +832,7 @@ def run_game(screen, map_path, sounds=None):
                     finished     = False
                     show_overlay = False
                     last_step    = now
+            # Kalkulasi ukuran sprite saat zoom in/out
             if event.type == pygame.MOUSEWHEEL:
                 new_ts = max(ZOOM_MIN, min(ZOOM_MAX, ts + event.y * ZOOM_STEP))
                 if new_ts != ts:
@@ -849,7 +850,7 @@ def run_game(screen, map_path, sounds=None):
                 sounds.play("click")
             if speed_dd.handle_event(event, speed_btn_rect) and sounds:
                 sounds.play("click")
-
+        # Saat mengganti algo maka di build ulang (game restart)
         if dropdown.pending_algo:
             algo = dropdown.consume()
             grid, player, gen, goals = build_run(grid_master, ts, algo, diff)
@@ -865,7 +866,7 @@ def run_game(screen, map_path, sounds=None):
             finished     = False
             show_overlay = False
             last_step    = now
-
+        # Saat ganti diff maka build ulang (game restart)
         if diff_dropdown.pending_diff:
             diff = diff_dropdown.consume()
             grid, player, gen, goals = build_run(grid_master, ts, algo, diff)
@@ -887,21 +888,18 @@ def run_game(screen, map_path, sounds=None):
             time.sleep(0.12)
 
         if not finished and not player.is_frozen():
-            # Mundur berjalan dengan setengah penundaan normal agar mundur dari jalan buntu terasa responsif
             delay = speed_dd.delay * (0.5 if status == "backtracking" else 1.0)
-            # Gerbang waktu — hanya majukan algoritma sekali per interval penundaan.
-            # Frame di antaranya hanya menggambar ulang status saat ini tanpa menggerakkan bot.
-            if now - last_step >= delay:
+            if now - last_step >= delay:    # Penegcekan apakah sudah waktunya gerak atau tidak. karena game loop berada di 120fps tapi tidak ingin jalan 120 kali per detik
                 try:
                     # Majukan algoritma tepat satu langkah.
                     # Setiap panggilan next() melanjutkan generator hingga yield berikutnya di algorithm.py.
                     kind, r, c, extra = next(gen)
-                    last_step = time.time()
+                    last_step = time.time()   # menandakan waktu sekarang untuk pengecekan loop berikutnya
                     if kind == "move":
                         # Bot menginjak sel baru selama pencarian
                         status = "exploring"
-                        player.is_active    = True
-                        player.is_backtrack = False
+                        player.is_active    = True  #untuk apakah sprite gerak atau diam
+                        player.is_backtrack = False #arah sprite geraknya (maju atau mundur)
                         visited_cells.add((r, c))
                         backtrack_cells.discard((r, c))  # hilangkan warna oranye jika sebelumnya mundur
                         solution_path.append((r, c))     # dorong ke stack jalur saat ini
